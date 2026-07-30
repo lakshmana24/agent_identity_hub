@@ -4,9 +4,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
 from app.database.session import engine, Base, SessionLocal, get_db
-from app.api import auth_router, agent_router, credential_router, governance_router, audit_router
+from app.api import auth_router, agent_router, credential_router, governance_router, audit_router, review_router
 from app.middleware.audit_middleware import AuditMiddleware
 from app.repository.agent_repository import seed_default_scopes
+from app.scheduler.scheduler import start_scheduler, shutdown_scheduler
 import app.models  # Ensures models are imported for Base.metadata
 
 @asynccontextmanager
@@ -18,7 +19,13 @@ async def lifespan(app: FastAPI):
         seed_default_scopes(db)
     finally:
         db.close()
-    yield
+
+    # Start background scheduler
+    start_scheduler()
+    try:
+        yield
+    finally:
+        shutdown_scheduler()
 
 app = FastAPI(title="Agent Identity Hub", lifespan=lifespan)
 
@@ -40,6 +47,7 @@ app.include_router(agent_router.router)
 app.include_router(credential_router.router)
 app.include_router(governance_router.router)
 app.include_router(audit_router.router)
+app.include_router(review_router.router)
 
 @app.get("/health")
 def health_check(db=Depends(get_db)):
