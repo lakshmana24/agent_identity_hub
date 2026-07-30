@@ -71,13 +71,12 @@ def get_auth_headers(db_session, role="superadmin", email="super@example.com"):
     token = create_access_token({"sub": admin.id, "email": admin.email, "role": admin.role, "org_id": admin.org_id})
     return {"Authorization": f"Bearer {token}"}
 
-def test_create_agent_with_owning_team_and_expiry(client, db_session):
+def test_create_agent_with_owning_team_and_risk_reasoning(client, db_session):
     headers = get_auth_headers(db_session, role="superadmin", email="creator@example.com")
     payload = {
         "agent_name": "GrowthBot",
         "purpose": "Processes customer campaign data and updates CRM records",
         "owning_team": "Growth",
-        "department": "Marketing",
         "owner": "growth@company.com",
         "requested_scopes": ["crm:read", "tickets:read"]
     }
@@ -86,6 +85,8 @@ def test_create_agent_with_owning_team_and_expiry(client, db_session):
     data = resp.json()
     assert data["owning_team"] == "Growth"
     assert data["expiry_date"] is not None
+    assert data["risk_reasoning"] is not None
+    assert "department" not in data
 
 def test_credential_usage_tracking_and_agent_expiry(client, db_session):
     headers = get_auth_headers(db_session, role="superadmin", email="usagetester@example.com")
@@ -93,7 +94,6 @@ def test_credential_usage_tracking_and_agent_expiry(client, db_session):
         "agent_name": "UsageTrackingBot",
         "purpose": "Test real credential usage tracking",
         "owning_team": "Finance",
-        "department": "Finance",
         "owner": "fin@company.com",
         "requested_scopes": ["payments:read"]
     }, headers=headers).json()
@@ -156,20 +156,44 @@ def test_team_quarterly_review_report(client, db_session):
     report = report_resp.json()
     assert "teams_reports" in report
 
-def test_read_only_ai_chatbot(client, db_session):
+def test_v3_chatbot_verification_prompts(client, db_session):
     headers = get_auth_headers(db_session, role="superadmin", email="chat@example.com")
     
-    # 1. Valid AIH domain query
-    q1 = client.post("/chatbot/ask", json={"question": "Which agents are stale?"}, headers=headers)
+    # Register real agent
+    client.post("/agents", json={
+        "agent_name": "RealSupportBot",
+        "purpose": "Drafts support replies",
+        "owning_team": "Customer Support",
+        "requested_scopes": ["tickets:read"]
+    }, headers=headers)
+
+    # 1. "List currently active agents" -> references real agent name
+    q1 = client.post("/chatbot/ask", json={"question": "List currently active agents"}, headers=headers)
     assert q1.status_code == 200
-    assert "answer" in q1.json()
+    ans1 = q1.json()["answer"]
+    assert "RealSupportBot" in ans1
 
-    # 2. Mutating request attempt -> Declined
-    q2 = client.post("/chatbot/ask", json={"question": "Revoke credential for agent agt_123"}, headers=headers)
+    # 2. "What scopes does RealSupportBot have?"
+    q2 = client.post("/chatbot/ask", json={"question": "What scopes does RealSupportBot have?"}, headers=headers)
     assert q2.status_code == 200
-    assert "read-only" in q2.json()["answer"].lower()
+    assert "tickets:read" in q2.json()["answer"]
 
-    # 3. Non-AIH domain query -> Declined with exact required string
-    q3 = client.post("/chatbot/ask", json={"question": "What is the recipe for chocolate cake?"}, headers=headers)
+    # 3. "Which agents are stale?"
+    q3 = client.post("/chatbot/ask", json={"question": "Which agents are stale?"}, headers=headers)
     assert q3.status_code == 200
-    assert q3.json()["answer"] == "I can only answer questions about agents and data within Agent Identity Hub."
+    assert "answer" in q3.json()
+
+    # 4. "What's the capital of France?" -> Declined per domain boundary
+    q4 = client.post("/chatbot/ask", json={"question": "What's the capital of France?"}, headers=headers)
+    assert q4.status_code == 200
+    assert q4.json()["answer"] == "I can only answer questions about agents and data within Agent Identity Hub."
+
+    # 5. "Revoke RealSupportBot's credential" -> Declined per read-only boundary
+    q5 = client.post("/chatbot/ask", json={"question": "Revoke RealSupportBot's credential"}, headers=headers)
+    assert q5.status_code == 200
+    assert "read-only" in q5.json()["answer"].lower()
+
+    # 6. Non-existent field "what's RealSupportBot's uptime percentage?" -> States data not available
+    q6 = client.post("/chatbot/ask", json={"question": "What is RealSupportBot's uptime percentage?"}, headers=headers)
+    assert q6.status_code == 200
+    assert "telemetry" in q6.json()["answer"].lower() or "not tracked" in q6.json()["answer"].lower() or "not available" in q6.json()["answer"].lower()

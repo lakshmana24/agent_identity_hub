@@ -24,7 +24,6 @@ class AgentCreateRequest(BaseModel):
     owning_team: str = "Growth"
     requested_scopes: List[str]
     expiry_date: Optional[datetime] = None  # Agent identity authorized lifetime (ISO 8601 string or default 1yr)
-    department: Optional[str] = "General"
     owner: Optional[str] = "admin@company.com"
     model_provider: Optional[str] = "Other"
     model_name: Optional[str] = "unknown"
@@ -33,6 +32,7 @@ class AgentCreateRequest(BaseModel):
     deployment_environment: Optional[str] = "production"
     risk_level: Optional[str] = None
     risk_level_source: Optional[str] = "ai_recommended"
+    risk_reasoning: Optional[str] = None
     description: Optional[str] = None
 
 class AgentUpdateRequest(BaseModel):
@@ -40,7 +40,6 @@ class AgentUpdateRequest(BaseModel):
     purpose: Optional[str] = None
     owning_team: Optional[str] = None
     expiry_date: Optional[datetime] = None
-    department: Optional[str] = None
     owner: Optional[str] = None
     requested_scopes: Optional[List[str]] = None
     model_provider: Optional[str] = None
@@ -50,6 +49,7 @@ class AgentUpdateRequest(BaseModel):
     deployment_environment: Optional[str] = None
     risk_level: Optional[str] = None
     risk_level_source: Optional[str] = None
+    risk_reasoning: Optional[str] = None
     description: Optional[str] = None
 
 class IdentityCard(BaseModel):
@@ -57,7 +57,6 @@ class IdentityCard(BaseModel):
     agent_name: str
     owning_team: str = "Growth"
     purpose: str
-    department: str = "General"
     owner: str = "admin@company.com"
     expiry_date: Optional[datetime] = None
     model_provider: str = "Other"
@@ -68,13 +67,13 @@ class IdentityCard(BaseModel):
     description: Optional[str] = None
     risk_level: str
     risk_level_source: str = "ai_recommended"
+    risk_reasoning: Optional[str] = None
     allowed_scopes: List[str]
     credential_status: str  # "not_issued", "active", "expired", "revoked"
     active_credential_expires_at: Optional[datetime] = None  # Credential's own expires_at
     lifecycle_status: str  # "active", "suspended", "deprovisioned"
     security_score: int
     flagged_for_review: bool = False
-    ai_summary: Optional[str] = None
     created_at: datetime
     updated_at: datetime
 

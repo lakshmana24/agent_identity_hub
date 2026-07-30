@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { Shield, KeyRound, RefreshCw, AlertOctagon, Trash2, ArrowLeft, CheckCircle, Copy, Clock, ShieldAlert, Users, Calendar, Activity } from 'lucide-react';
+import { Shield, KeyRound, RefreshCw, AlertOctagon, Trash2, ArrowLeft, CheckCircle, Copy, Clock, ShieldAlert, Users, Calendar, AlertTriangle } from 'lucide-react';
 import { api } from '../api/client';
 
 export const AgentDetailPage = () => {
@@ -48,7 +48,7 @@ export const AgentDetailPage = () => {
       }
     } catch (err) {
       console.error('Failed to fetch agent', err);
-    } finally {
+    } final: {
       setLoading(false);
     }
   };
@@ -152,14 +152,23 @@ export const AgentDetailPage = () => {
       </Link>
 
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.75rem', flexWrap: 'wrap', gap: '1rem' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.25rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.35rem' }}>
             <h2 style={{ fontSize: '1.75rem', fontWeight: 700 }}>{agent.agent_name}</h2>
             <span className={`badge badge-${agent.lifecycle_status}`}>{agent.lifecycle_status}</span>
             <span className={`badge badge-risk-${agent.risk_level.toLowerCase()}`}>{agent.risk_level} Risk</span>
           </div>
-          <div style={{ color: 'var(--text-dim)', fontSize: '0.875rem' }}>ID: {agent.agent_id} • Created {new Date(agent.created_at).toLocaleDateString()}</div>
+
+          {/* Fix 11: Risk Reasoning Display directly under Risk Badge */}
+          {agent.risk_reasoning && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.825rem', color: agent.risk_level === 'Critical' || agent.risk_level === 'High' ? '#fca5a5' : 'var(--text-muted)', marginBottom: '0.5rem', background: 'rgba(15, 23, 42, 0.6)', padding: '0.35rem 0.75rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-color)' }}>
+              <AlertTriangle size={14} style={{ color: agent.risk_level === 'Critical' ? '#ef4444' : '#f59e0b' }} />
+              <span><strong>Risk Analysis:</strong> {agent.risk_reasoning}</span>
+            </div>
+          )}
+
+          <div style={{ color: 'var(--text-dim)', fontSize: '0.85rem' }}>ID: {agent.agent_id} • Created {new Date(agent.created_at).toLocaleDateString()}</div>
         </div>
 
         {/* Action Controls */}
@@ -212,8 +221,8 @@ export const AgentDetailPage = () => {
                 <div style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--accent-cyan)', marginTop: '0.2rem' }}>{agent.owning_team}</div>
               </div>
               <div>
-                <span style={{ color: 'var(--text-dim)', fontSize: '0.75rem', textTransform: 'uppercase' }}>Department</span>
-                <div style={{ fontWeight: 600, marginTop: '0.2rem' }}>{agent.department}</div>
+                <span style={{ color: 'var(--text-dim)', fontSize: '0.75rem', textTransform: 'uppercase' }}>Owner Email</span>
+                <div style={{ fontWeight: 600, marginTop: '0.2rem' }}>{agent.owner}</div>
               </div>
             </div>
 
@@ -247,17 +256,10 @@ export const AgentDetailPage = () => {
                 ))}
               </div>
             </div>
-
-            {agent.ai_summary && (
-              <div style={{ background: 'rgba(15, 23, 42, 0.6)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', padding: '1rem', marginTop: '0.5rem' }}>
-                <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--accent-purple)', textTransform: 'uppercase' }}>AI Identity Record Summary</span>
-                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>{agent.ai_summary}</p>
-              </div>
-            )}
           </div>
         </div>
 
-        {/* Governance & Compliance Score Card */}
+        {/* Security Governance Score */}
         <div className="glass-card" style={{ padding: '1.75rem' }}>
           <h3 style={{ fontSize: '1.1rem', fontWeight: 600, marginBottom: '1.25rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>Security Posture & Compliance</h3>
           

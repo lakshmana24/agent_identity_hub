@@ -1,4 +1,5 @@
 import os
+from typing import Optional
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
@@ -9,9 +10,10 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
-    # Gemini / AI configuration
-    GEMINI_API_KEY: str | None = None
-    AI_MODE: str = "live"  # "live" in production
+    # AI configuration
+    GROQ_API_KEY: Optional[str] = None
+    GEMINI_API_KEY: Optional[str] = None
+    AI_MODE: str = "live"  # "live" | "mock"
 
     LOG_LEVEL: str = "info"
 

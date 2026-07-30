@@ -24,13 +24,26 @@ from app.ai.gemini_client import get_ai_client
 RISK_HIERARCHY = {"Low": 1, "Medium": 2, "High": 3, "Critical": 4}
 RISK_REVERSE = {1: "Low", 2: "Medium", 3: "High", 4: "Critical"}
 
-def _calculate_risk_from_scopes(scopes_manifest) -> str:
+def _calculate_risk_from_scopes(scopes_manifest) -> tuple[str, str]:
     max_risk_num = 1
+    highest_scope = "crm:read"
     for s in scopes_manifest:
         risk_num = RISK_HIERARCHY.get(s.risk_level, 1)
         if risk_num > max_risk_num:
             max_risk_num = risk_num
-    return RISK_REVERSE.get(max_risk_num, "Low")
+            highest_scope = s.scope_name
+
+    risk_str = RISK_REVERSE.get(max_risk_num, "Low")
+    if risk_str == "Critical":
+        reasoning = f"Agent has critical permission ({highest_scope}), which allows executing sensitive financial transactions or administrative control."
+    elif risk_str == "High":
+        reasoning = f"Agent holds high-privilege permission ({highest_scope}), allowing modification of core enterprise inventory or data."
+    elif risk_str == "Medium":
+        reasoning = f"Agent holds write permissions ({highest_scope}), allowing modification of operational records."
+    else:
+        reasoning = "Agent operates under minimal read-only permissions with low security risk."
+
+    return risk_str, reasoning
 
 def build_identity_card(db: Session, agent: Agent) -> IdentityCard:
     cred = get_latest_credential_by_agent_id(db, agent.id)
@@ -61,7 +74,6 @@ def build_identity_card(db: Session, agent: Agent) -> IdentityCard:
         agent_name=agent.agent_name,
         owning_team=getattr(agent, "owning_team", "Growth") or "Growth",
         purpose=agent.purpose,
-        department=agent.department or "General",
         owner=agent.owner or "admin@company.com",
         expiry_date=agent_exp,
         model_provider=agent.model_provider or "Other",
@@ -72,13 +84,13 @@ def build_identity_card(db: Session, agent: Agent) -> IdentityCard:
         description=agent.description,
         risk_level=agent.risk_level,
         risk_level_source=agent.risk_level_source or "ai_recommended",
+        risk_reasoning=getattr(agent, "risk_reasoning", None) or f"Assigned {agent.risk_level} risk level based on granted tool scopes.",
         allowed_scopes=agent.allowed_scopes or [],
         credential_status=cred_status,
         active_credential_expires_at=active_cred_exp,
         lifecycle_status=agent.lifecycle_status,
         security_score=agent.security_score,
         flagged_for_review=agent.flagged_for_review,
-        ai_summary=agent.ai_summary,
         created_at=agent.created_at,
         updated_at=agent.updated_at
     )
@@ -96,12 +108,18 @@ def register_agent_service(db: Session, payload: AgentCreateRequest) -> Identity
             detail=f"Invalid scopes requested: {sorted(list(missing_scopes))}. Scope does not exist in manifest."
         )
 
-    # 2. Determine risk level & source
+    # 2. Determine risk level & specific reasoning
+    calc_risk, calc_reasoning = _calculate_risk_from_scopes(found_scopes)
     if payload.risk_level and payload.risk_level in RISK_HIERARCHY:
         final_risk = payload.risk_level
         risk_source = payload.risk_level_source or "admin_override"
+        risk_reasoning = payload.risk_reasoning or f"Admin overridden to {final_risk} risk."
     else:
-        final_risk = _calculate_risk_from_scopes(found_scopes)
+        # Call AI client for grounded recommendation reasoning if available
+        ai_client = get_ai_client()
+        rec = ai_client.recommend_scopes(payload.purpose, found_scopes, payload.model_provider or "Other", payload.model_name or "unknown", payload.tools or [])
+        final_risk = rec.risk_level or calc_risk
+        risk_reasoning = rec.reasoning or calc_reasoning
         risk_source = "ai_recommended"
 
     # 3. Resolve agent identity authorized lifetime expiry_date (default 1 year)
@@ -111,26 +129,11 @@ def register_agent_service(db: Session, payload: AgentCreateRequest) -> Identity
     else:
         agent_exp = now + timedelta(days=365)
 
-    # 4. Generate AI summary automatically
-    ai_client = get_ai_client()
-    summary_text = ai_client.generate_identity_summary({
-        "agent_name": payload.agent_name,
-        "purpose": payload.purpose,
-        "department": payload.department or "General",
-        "owning_team": payload.owning_team,
-        "scopes": requested_scopes,
-        "risk_level": final_risk,
-        "model_provider": payload.model_provider,
-        "model_name": payload.model_name,
-        "tools": payload.tools
-    })
-
-    # 5. Create agent record
+    # 4. Create agent record
     agent_data = {
         "agent_name": payload.agent_name,
         "owning_team": payload.owning_team,
         "purpose": payload.purpose,
-        "department": payload.department or "General",
         "owner": payload.owner or "admin@company.com",
         "expiry_date": agent_exp,
         "model_provider": payload.model_provider or "Other",
@@ -141,10 +144,10 @@ def register_agent_service(db: Session, payload: AgentCreateRequest) -> Identity
         "description": payload.description,
         "risk_level": final_risk,
         "risk_level_source": risk_source,
+        "risk_reasoning": risk_reasoning,
         "allowed_scopes": requested_scopes,
         "lifecycle_status": "active",
-        "security_score": 100,
-        "ai_summary": summary_text
+        "security_score": 100
     }
 
     agent = repo_create_agent(db, agent_data)
@@ -159,13 +162,12 @@ def get_agent_detail_service(db: Session, agent_id: str) -> IdentityCard:
 def list_agents_service(
     db: Session,
     status: Optional[str] = None,
-    department: Optional[str] = None,
     owning_team: Optional[str] = None,
     risk_level: Optional[str] = None,
     page: int = 1,
     page_size: int = 20
 ) -> AgentListResponse:
-    agents, total = get_agents(db, status=status, department=department, owning_team=owning_team, risk_level=risk_level, page=page, page_size=page_size)
+    agents, total = get_agents(db, status=status, owning_team=owning_team, risk_level=risk_level, page=page, page_size=page_size)
     cards = [build_identity_card(db, a) for a in agents]
     return AgentListResponse(
         total=total,
@@ -196,7 +198,9 @@ def update_agent_service(db: Session, agent_id: str, payload: AgentUpdateRequest
             )
         update_dict["allowed_scopes"] = new_scopes
         if "risk_level" not in update_dict:
-            update_dict["risk_level"] = _calculate_risk_from_scopes(found_scopes)
+            calc_risk, calc_reasoning = _calculate_risk_from_scopes(found_scopes)
+            update_dict["risk_level"] = calc_risk
+            update_dict["risk_reasoning"] = calc_reasoning
 
     updated_agent = repo_update_agent(db, agent, update_dict)
     return build_identity_card(db, updated_agent)

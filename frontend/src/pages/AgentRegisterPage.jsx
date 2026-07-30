@@ -8,7 +8,6 @@ export const AgentRegisterPage = () => {
   const [agentName, setAgentName] = useState('');
   const [purpose, setPurpose] = useState('');
   const [owningTeam, setOwningTeam] = useState('Growth');
-  const [department, setDepartment] = useState('Engineering');
   const [owner, setOwner] = useState('dev@company.com');
   const [expiryDate, setExpiryDate] = useState('');
   
@@ -55,7 +54,6 @@ export const AgentRegisterPage = () => {
         agent_name: agentName,
         purpose,
         owning_team: owningTeam,
-        department,
         owner,
         requested_scopes: selectedScopes,
         expiry_date: expiryDate ? new Date(expiryDate).toISOString() : undefined
@@ -110,24 +108,18 @@ export const AgentRegisterPage = () => {
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
             <div className="form-group">
-              <label className="form-label">Department / Unit</label>
-              <input type="text" className="input-field" placeholder="e.g. Engineering, Finance" value={department} onChange={(e) => setDepartment(e.target.value)} required />
-            </div>
-
-            <div className="form-group">
               <label className="form-label">Owner Email</label>
               <input type="email" className="input-field" placeholder="owner@company.com" value={owner} onChange={(e) => setOwner(e.target.value)} required />
             </div>
-          </div>
 
-          <div className="form-group">
-            <label className="form-label">Agent Identity Authorized Lifetime Expiry (Optional)</label>
-            <input type="datetime-local" className="input-field" value={expiryDate} onChange={(e) => setExpiryDate(e.target.value)} />
-            <span style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>Leave blank to default to 1-year identity lifetime. Credentials issued will be capped by this expiry date.</span>
+            <div className="form-group">
+              <label className="form-label">Agent Identity Authorized Lifetime Expiry (Optional)</label>
+              <input type="datetime-local" className="input-field" value={expiryDate} onChange={(e) => setExpiryDate(e.target.value)} />
+            </div>
           </div>
 
           {/* Purpose */}
-          <div className="form-group" style={{ marginTop: '1.25rem' }}>
+          <div className="form-group" style={{ marginTop: '0.5rem' }}>
             <label className="form-label">Stated Purpose Description</label>
             <textarea className="textarea-field" rows={3} placeholder="Describe the operational purpose of this AI agent (e.g. Processes customer ticket refunds and updates CRM records)..." value={purpose} onChange={(e) => setPurpose(e.target.value)} required />
           </div>

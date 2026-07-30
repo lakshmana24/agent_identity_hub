@@ -72,7 +72,8 @@ def test_get_dashboard_metrics(client, auth_headers):
     reg1 = client.post("/agents", json={
         "agent_name": "Dash Low Risk Bot",
         "purpose": "General support queries",
-        "department": "Support",
+        "owning_team": "Customer Support",
+        "risk_level": "Low",
         "owner": "support@company.com",
         "requested_scopes": ["crm:read"]
     }, headers=auth_headers).json()
@@ -80,8 +81,9 @@ def test_get_dashboard_metrics(client, auth_headers):
     # 2. Register a High risk agent
     client.post("/agents", json={
         "agent_name": "Dash High Risk Bot",
-        "purpose": "Process refunds via Stripe",
-        "department": "Finance",
+        "purpose": "Process inventory updates",
+        "owning_team": "Logistics",
+        "risk_level": "High",
         "owner": "finance@company.com",
         "requested_scopes": ["crm:read", "inventory:write"]
     }, headers=auth_headers)

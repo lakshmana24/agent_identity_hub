@@ -14,9 +14,21 @@ Human employees get identity records, role-based scope limits, lifecycle managem
 
 ### Live Production Architecture & Deployment Checklist
 - [x] **Multi-Worker Concurrency**: Gunicorn running 4 Uvicorn worker processes (`--timeout 120 --keep-alive 5`).
-- [x] **Production Serverless Database**: Connected to Neon PostgreSQL with connection pool safety (`pool_size=10`, `max_overflow=20`, `pool_pre_ping=True`) and auto-schema migrations.
+- [x] **Production Serverless Database**: Connected to Neon PostgreSQL with connection pool safety (`pool_size=10`, `max_overflow=20`, `pool_pre_ping=True`) and safe auto-schema migrations.
 - [x] **Single-Container Delivery**: Multi-stage Docker image serving FastAPI backend and Vite React SPA.
-- [x] **AI Governance Engine**: Powered by Google Gemini 1.5 Flash (`AI_MODE=live`) with keyword-based fallback heuristics.
+- [x] **AI Governance Engine**: Powered by Groq (`GROQ_API_KEY`) running Llama-3.3-70b (`AI_MODE=live`) with deterministic fallback heuristics. Gemini settings remain present in config for future use.
+
+---
+
+## ⚡ AI Infrastructure & Risk Reasoning
+
+### Groq Provider Integration
+- AI governance analysis, risk classification, and the 2-stage chatbot pipeline are powered by **Groq** (`llama-3.3-70b-versatile`).
+- *Note on Gemini*: Google Gemini configuration settings (`GEMINI_API_KEY`) remain present in the codebase and config schema but are unused, preserving flexibility to swap providers without configuration churn.
+
+### Risk-Level Reasoning Display
+- Every agent registration triggers a grounded risk analysis.
+- Rather than displaying unhelpful boilerplate, AIH surfaces a **short, specific risk-reasoning line directly under the Risk Badge** on the Identity Card (e.g. `Critical Risk — Agent has write access to payment records (payments:write), which can directly move enterprise funds.`).
 
 ---
 
@@ -24,7 +36,7 @@ Human employees get identity records, role-based scope limits, lifecycle managem
 
 ### Credential Relationship & Boundaries
 - **Access Credential vs. LLM Provider Key**: AIH issues and governs the agent's *enterprise access credential* (`aih_{agent_id}_{nonce}_{secret}`) used to access company tools and API scopes. AIH does **NOT** manage or store the agent's underlying LLM provider API key (e.g., OpenAI API key, Anthropic API key), which remains an internal runtime configuration outside AIH's boundary.
-- **Enforcement Architecture**: AIH operates as an authoritative **Governance & Validation Service**. Downstream enterprise services or API gateways call `POST /credentials/validate` before honoring an agent request. AIH is an IAM authority, not a inline network proxy.
+- **Enforcement Architecture**: AIH operates as an authoritative **Governance & Validation Service**. Downstream enterprise services or API gateways call `POST /credentials/validate` before honoring an agent request. AIH is an IAM authority, not an inline network proxy.
 
 ---
 
@@ -40,28 +52,40 @@ Seeded demo accounts available for immediate evaluation:
 
 ---
 
-## 🏗️ System Architecture
+## 🤖 Two-Stage AI Insights Chatbot Architecture
+
+The AI Insights Chatbot (`POST /chatbot/ask` & floating UI widget) is implemented as a **real two-stage retrieval pipeline**:
 
 ```text
-├── app/
-│   ├── ai/                      # Gemini 1.5 Flash client & fallback heuristics
-│   ├── api/                     # API Routers (Auth, Agents, Credentials, Governance, Audit, Reviews, Dashboard, Admins, Chatbot)
-│   ├── auth/                    # JWT tokens, bcrypt hashing, RBAC dependencies
-│   ├── config/                  # Pydantic Settings loading environment variables
-│   ├── database/                # SQLAlchemy session, engine pooling, and auto-migrations
-│   ├── middleware/              # Non-blocking post-response AuditMiddleware (excludes HEAD & health probes)
-│   ├── models/                  # SQLAlchemy ORM models (Admin, Agent, ScopeManifest, Credential, AuditLog, ReviewReport)
-│   ├── repository/              # DB queries, real credential usage tracking, and team quarterly reports
-│   ├── scheduler/               # APScheduler background sweeper (auto-expire, 30d stale detection, reviews)
-│   ├── schemas/                 # Pydantic validation schemas
-│   └── services/                # Core business logic services
-├── frontend/                    # Vite + React 18 SPA (Dark UI, dynamic forms, Chatbot widget)
-├── scripts/                     # Seed scripts for demo accounts and default scopes
-├── tests/                       # Complete Pytest unit test suite (39/39 passing)
-├── Dockerfile                   # Multi-stage production container build
-├── docker-compose.yml           # Local multi-container environment
-└── requirements.txt             # Python production dependencies
+[User Question]
+       │
+       ▼
+┌──────────────────────────────────────────────────────────┐
+│ STAGE 1: Retriever Agent (Groq Tool Calling)             │
+│ - Inspects question and requests tool calls:             │
+│   • list_agents(status?, owning_team?)                   │
+│   • get_agent_detail(identifier)                         │
+│   • list_stale_agents(inactivity_days?)                 │
+│   • get_review_report(owning_team?)                      │
+│   • search_audit_logs(agent_id?, action?)               │
+│   • get_dashboard_metrics()                              │
+│ - Executes queries against REAL database repository      │
+│ - Server-side logs tool calls, args & returned counts    │
+└──────────────────────────┬───────────────────────────────┘
+                           │ Actual Structured DB Data
+                           ▼
+┌──────────────────────────────────────────────────────────┐
+│ STAGE 2: Responder Agent (Facts-Only Synthesizer)        │
+│ - System prompt: "Only state facts present in provided   │
+│   retrieved data. Never invent agent names or dates."    │
+│ - Formats concise, specific natural-language answer       │
+└──────────────────────────────────────────────────────────┘
 ```
+
+### Strict Domain & Read-Only Boundaries
+- **Strict Domain Boundary**: Questions outside the AIH domain (e.g. *"What is the capital of France?"*) return: `"I can only answer questions about agents and data within Agent Identity Hub."`
+- **Read-Only Guardrail**: Mutating requests (e.g. *"Revoke Agent X's credential"*) decline and direct users to the dashboard UI.
+- **Telemetry Boundary**: Questions requesting non-existent telemetry (e.g. *"What is Agent X's uptime percentage?"*) state that performance telemetry is not tracked, never fabricating data.
 
 ---
 
@@ -84,6 +108,7 @@ Seeded demo accounts available for immediate evaluation:
    JWT_ALGORITHM=HS256
    ACCESS_TOKEN_EXPIRE_MINUTES=30
    REFRESH_TOKEN_EXPIRE_DAYS=7
+   GROQ_API_KEY=your_groq_api_key_here
    GEMINI_API_KEY=your_google_gemini_api_key_here
    AI_MODE=mock
    ```
@@ -130,7 +155,7 @@ curl -X POST "http://localhost:8000/auth/login" \
 
 ---
 
-### 2. Register 3 Agents with Different Tool Scopes
+### 2. Register Agents with Owning Team & Tool Scopes
 
 #### Agent 1 — Customer Support Reply Agent (Team: Customer Support)
 ```bash
@@ -155,19 +180,6 @@ curl -X POST "http://localhost:8000/agents" \
     "purpose": "Processes customer financial refunds and updates ledger",
     "owning_team": "Finance",
     "requested_scopes": ["payments:read", "payments:write"]
-  }'
-```
-
-#### Agent 3 — Inventory Monitoring Agent (Team: Logistics)
-```bash
-curl -X POST "http://localhost:8000/agents" \
-  -H "Authorization: Bearer $TOKEN" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "agent_name": "InventoryMonitorBot",
-    "purpose": "Monitors stock levels and updates product counts",
-    "owning_team": "Logistics",
-    "requested_scopes": ["inventory:read", "inventory:write"]
   }'
 ```
 
@@ -219,7 +231,7 @@ curl -X GET "http://localhost:8000/reviews/report?owning_team=Customer%20Support
 *Returns structured report showing active agents, healthy agents, stale agents (inactive 30+ days), and recommendation summary.*
 
 #### Instant Testing Affordance for Staleness
-Query with `inactivity_days=0` to treat all inactive agents as stale immediately without waiting 30 days:
+Query with `inactivity_days=0` to treat all inactive agents as stale immediately:
 ```bash
 curl -X GET "http://localhost:8000/reviews/stale-agents?inactivity_days=0" \
   -H "Authorization: Bearer $TOKEN"
@@ -227,7 +239,7 @@ curl -X GET "http://localhost:8000/reviews/stale-agents?inactivity_days=0" \
 
 ---
 
-### 5. Prove Auto-Revoke & Testing Affordance
+### 5. Prove Auto-Revoke & Testing Affordances
 
 #### Instant Credential Expiry Testing
 Generate a credential with an explicit past `expires_at` timestamp:
@@ -278,23 +290,6 @@ curl -X POST "http://localhost:8000/credentials/validate" \
 
 ---
 
-## 🤖 Read-Only AI Insights Chatbot
-
-AIH includes a read-only AI Insights Chatbot endpoint (`POST /chatbot/ask`) and floating frontend widget.
-
-### Capabilities & Domain Guardrails
-- **Supported Domain**: Synthesizes live database state for agent directory queries, stale agent reports, team quarterly reviews, audit logs, and security scores.
-- **Strict Domain Boundary**: Questions outside AIH domain return: `"I can only answer questions about agents and data within Agent Identity Hub."`
-- **Read-Only Enforcement**: Rejects mutating attempts (e.g. "revoke credential") with an explicit message directing users to the dashboard.
-
-### Example Questions
-- *"Which agents haven't made an API call in 30+ days?"*
-- *"Show me the quarterly review report for the Growth team."*
-- *"How many active agents are registered?"*
-- *"What tool scopes are granted to agent agt_123?"*
-
----
-
 ## 🔐 Bonus — Auth0 / OIDC Integration Status
 
 - **Status**: Conceptually scaffolded.
@@ -315,7 +310,7 @@ AIH includes a read-only AI Insights Chatbot endpoint (`POST /chatbot/ask`) and 
 | :--- | :--- | :--- | :--- |
 | `GET` | `/health` | None | System health check (`db` & `ai_mode` status). |
 | `HEAD` | `/health` | None | Infrastructure health probe endpoint (bypasses audit logging). |
-| `GET` | `/ai/status` | None | Detailed AI client inspection & live Gemini API ping result. |
+| `GET` | `/governance/ai-status` | None | Detailed AI client inspection (`provider: groq` when live). |
 | `POST` | `/auth/login` | None | Admin authentication returning JWT access & refresh tokens. |
 | `POST` | `/auth/refresh-token` | None | Obtains new access token using valid refresh token. |
 | `GET` | `/auth/me` | Bearer (Any Role) | Returns logged-in admin profile and assigned role. |
@@ -332,7 +327,7 @@ AIH includes a read-only AI Insights Chatbot endpoint (`POST /chatbot/ask`) and 
 | `POST` | `/credentials/renew` | Bearer (`admin`/`superadmin`) | Extends credential expiration timestamp. |
 | `POST` | `/credentials/revoke` | Bearer (`admin`/`superadmin`) | Revokes agent credential immediately. |
 | `POST` | `/credentials/validate` | None (Public for AI) | Fast validation checking expiry, identity status, & scopes; updates usage metrics. |
-| `POST` | `/chatbot/ask` | Bearer (Any Role) | Read-only AI Insights chatbot answering AIH domain queries. |
+| `POST` | `/chatbot/ask` | Bearer (Any Role) | 2-Stage AI Insights chatbot executing tool calls against real DB data. |
 | `GET` | `/reviews/stale-agents` | Bearer (Any Role) | Lists agents inactive for 30+ days based on real usage metrics. |
 | `GET` | `/reviews/report` | Bearer (Any Role) | Returns team quarterly access review report (filter by `owning_team`). |
 | `GET` | `/reviews` | Bearer (Any Role) | Paginated list of historical governance review reports. |

@@ -23,7 +23,6 @@ class StaleAgentResponse(BaseModel):
     agent_id: str
     agent_name: str
     owning_team: str = "Growth"
-    department: str = "General"
     owner: str = "admin@company.com"
     last_used_at: Optional[datetime] = None
     days_inactive: int

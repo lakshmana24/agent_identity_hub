@@ -21,25 +21,13 @@ def apply_auto_migrations(engine):
             cols = [c["name"] for c in inspector.get_columns("agents")]
             if "owning_team" not in cols:
                 logger.info("Migrating agents: adding 'owning_team' column")
-                conn.execute(text("ALTER TABLE agents ADD COLUMN owning_team VARCHAR NOT NULL DEFAULT 'DefaultTeam';"))
+                conn.execute(text("ALTER TABLE agents ADD COLUMN owning_team VARCHAR NOT NULL DEFAULT 'Growth';"))
             if "expiry_date" not in cols:
                 logger.info("Migrating agents: adding 'expiry_date' column")
                 conn.execute(text("ALTER TABLE agents ADD COLUMN expiry_date TIMESTAMP WITH TIME ZONE;"))
-            if "model_provider" not in cols:
-                conn.execute(text("ALTER TABLE agents ADD COLUMN model_provider VARCHAR NOT NULL DEFAULT 'Other';"))
-            if "model_name" not in cols:
-                conn.execute(text("ALTER TABLE agents ADD COLUMN model_name VARCHAR NOT NULL DEFAULT 'unknown';"))
-            if "tools" not in cols:
-                if is_postgres:
-                    conn.execute(text("ALTER TABLE agents ADD COLUMN tools JSON NOT NULL DEFAULT '[]'::json;"))
-                else:
-                    conn.execute(text("ALTER TABLE agents ADD COLUMN tools JSON NOT NULL DEFAULT '[]';"))
-            if "agent_endpoint_url" not in cols:
-                conn.execute(text("ALTER TABLE agents ADD COLUMN agent_endpoint_url VARCHAR;"))
-            if "deployment_environment" not in cols:
-                conn.execute(text("ALTER TABLE agents ADD COLUMN deployment_environment VARCHAR NOT NULL DEFAULT 'production';"))
-            if "risk_level_source" not in cols:
-                conn.execute(text("ALTER TABLE agents ADD COLUMN risk_level_source VARCHAR NOT NULL DEFAULT 'ai_recommended';"))
+            if "risk_reasoning" not in cols:
+                logger.info("Migrating agents: adding 'risk_reasoning' column")
+                conn.execute(text("ALTER TABLE agents ADD COLUMN risk_reasoning VARCHAR;"))
 
         # 3. credentials table
         if "credentials" in tables:

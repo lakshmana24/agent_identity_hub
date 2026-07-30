@@ -40,14 +40,14 @@ def register_agent(
 @router.get("/agents", response_model=AgentListResponse)
 def list_agents(
     status: Optional[str] = Query(None, description="Filter by lifecycle status (active, suspended, deprovisioned)"),
-    department: Optional[str] = Query(None, description="Filter by department"),
+    owning_team: Optional[str] = Query(None, description="Filter by owning team (Growth, Finance, DevOps, Logistics, Support)"),
     risk_level: Optional[str] = Query(None, description="Filter by risk level (Low, Medium, High, Critical)"),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     db: Session = Depends(get_db),
     current_admin: Admin = Depends(get_current_admin)
 ):
-    return list_agents_service(db, status=status, department=department, risk_level=risk_level, page=page, page_size=page_size)
+    return list_agents_service(db, status=status, owning_team=owning_team, risk_level=risk_level, page=page, page_size=page_size)
 
 @router.get("/agents/{id}", response_model=IdentityCard)
 def get_agent(

@@ -108,7 +108,6 @@ export const AgentListPage = () => {
               <tr>
                 <th>Agent Name & ID</th>
                 <th>Owning Team</th>
-                <th>Department</th>
                 <th>Risk Level</th>
                 <th>Credential</th>
                 <th>Status</th>
@@ -127,7 +126,6 @@ export const AgentListPage = () => {
                       <Users size={14} /> {agent.owning_team}
                     </span>
                   </td>
-                  <td style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{agent.department}</td>
                   <td>
                     <span className={`badge badge-risk-${agent.risk_level.toLowerCase()}`}>
                       {agent.risk_level}

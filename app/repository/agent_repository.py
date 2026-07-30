@@ -64,7 +64,6 @@ def get_agent_by_id(db: Session, agent_id: str) -> Optional[Agent]:
 def get_agents(
     db: Session,
     status: Optional[str] = None,
-    department: Optional[str] = None,
     owning_team: Optional[str] = None,
     risk_level: Optional[str] = None,
     page: int = 1,
@@ -76,9 +75,6 @@ def get_agents(
         query = query.filter(Agent.lifecycle_status == status)
     else:
         query = query.filter(Agent.lifecycle_status != "deprovisioned")
-
-    if department:
-        query = query.filter(Agent.department == department)
 
     if owning_team:
         query = query.filter(Agent.owning_team == owning_team)

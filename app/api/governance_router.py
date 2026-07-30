@@ -23,7 +23,8 @@ from app.services.ai_recommendation_service import (
     recommend_scopes_service,
     generate_identity_summary_service
 )
-from app.ai.gemini_client import get_ai_client, LiveGeminiClient
+from app.ai.gemini_client import get_ai_client, MockAIClient
+from app.ai.groq_client import LiveGroqClient
 from app.models.admin import Admin
 
 router = APIRouter(prefix="/governance", tags=["Governance & Security Enforcement"])
@@ -31,18 +32,27 @@ router = APIRouter(prefix="/governance", tags=["Governance & Security Enforcemen
 @router.get("/ai-status")
 def get_ai_status():
     mode = settings.AI_MODE.lower()
-    has_key = bool(settings.GEMINI_API_KEY and settings.GEMINI_API_KEY != "replace_with_your_gemini_api_key")
+    has_groq = bool(settings.GROQ_API_KEY)
+    has_gemini = bool(settings.GEMINI_API_KEY and settings.GEMINI_API_KEY != "replace_with_your_gemini_api_key")
     ai_client = get_ai_client()
-    is_live = isinstance(ai_client, LiveGeminiClient)
+    is_mock = isinstance(ai_client, MockAIClient)
 
     live_ping = None
-    if is_live:
+    if hasattr(ai_client, "test_live_connection"):
         live_ping = ai_client.test_live_connection()
 
+    provider_name = "mock"
+    if isinstance(ai_client, LiveGroqClient):
+        provider_name = "groq"
+    elif not is_mock:
+        provider_name = "gemini"
+
     return {
-        "ai_mode": "live" if is_live else "mock",
+        "ai_mode": "mock" if is_mock else "live",
+        "provider": provider_name,
         "configured_ai_mode": mode,
-        "gemini_api_key_configured": has_key,
+        "groq_api_key_configured": has_groq,
+        "gemini_api_key_configured": has_gemini,
         "live_ping": live_ping
     }
 

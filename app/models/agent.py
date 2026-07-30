@@ -11,9 +11,8 @@ class Agent(Base):
 
     id = Column(String, primary_key=True, default=generate_agent_id)
     agent_name = Column(String, index=True, nullable=False)
-    owning_team = Column(String, index=True, nullable=False, default="DefaultTeam")
+    owning_team = Column(String, index=True, nullable=False, default="Growth")
     purpose = Column(String, nullable=False)
-    department = Column(String, index=True, nullable=False, default="General")
     owner = Column(String, nullable=False, default="admin@company.com")
     description = Column(String, nullable=True)
     expiry_date = Column(DateTime(timezone=True), nullable=True)  # Agent identity authorized lifetime
@@ -28,10 +27,10 @@ class Agent(Base):
     # Governance & Status
     risk_level = Column(String, nullable=False, default="Low")  # Low, Medium, High, Critical
     risk_level_source = Column(String, nullable=False, default="ai_recommended")  # ai_recommended, admin_override
+    risk_reasoning = Column(String, nullable=True)  # Specific risk explanation under risk badge
     allowed_scopes = Column(JSON, nullable=False, default=list)  # e.g. ["crm:read", "tickets:write"]
     lifecycle_status = Column(String, nullable=False, default="active")  # active, suspended, deprovisioned
     security_score = Column(Integer, nullable=False, default=100)
-    ai_summary = Column(String, nullable=True)
     flagged_for_review = Column(Boolean, nullable=False, default=False)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)

@@ -72,17 +72,18 @@ def test_list_scopes(client, auth_headers):
 
 def test_register_agent_success(client, auth_headers):
     payload = {
-        "agent_name": "Refund Bot",
-        "purpose": "Automates customer refund processing via Stripe",
-        "department": "Finance",
+        "agent_name": "Support Reply Bot",
+        "purpose": "Drafts customer support replies",
+        "owning_team": "Customer Support",
+        "risk_level": "Low",
         "owner": "john.doe@company.com",
         "requested_scopes": ["crm:read", "tickets:read"],
-        "description": "Processes refunds under $50 automatically"
+        "description": "Processes support queries automatically"
     }
     response = client.post("/agents", json=payload, headers=auth_headers)
     assert response.status_code == 201
     card = response.json()
-    assert card["agent_name"] == "Refund Bot"
+    assert card["agent_name"] == "Support Reply Bot"
     assert card["lifecycle_status"] == "active"
     assert card["allowed_scopes"] == ["crm:read", "tickets:read"]
     assert card["risk_level"] == "Low"
@@ -91,7 +92,7 @@ def test_register_agent_invalid_scope(client, auth_headers):
     payload = {
         "agent_name": "Rogue Bot",
         "purpose": "Invalid testing",
-        "department": "IT",
+        "owning_team": "Platform",
         "owner": "admin@company.com",
         "requested_scopes": ["crm:read", "superadmin:all"]
     }
@@ -102,8 +103,9 @@ def test_register_agent_invalid_scope(client, auth_headers):
 def test_get_agent_detail(client, auth_headers):
     reg_resp = client.post("/agents", json={
         "agent_name": "CRM Sync Agent",
-        "purpose": "Syncs contacts",
-        "department": "Sales",
+        "purpose": "Syncs contacts and updates records",
+        "owning_team": "Growth",
+        "risk_level": "Medium",
         "owner": "sales.lead@company.com",
         "requested_scopes": ["crm:read", "crm:write"]
     }, headers=auth_headers)
@@ -113,13 +115,13 @@ def test_get_agent_detail(client, auth_headers):
     assert response.status_code == 200
     card = response.json()
     assert card["agent_id"] == agent_id
-    assert card["risk_level"] == "Medium"  # crm:write is Medium
+    assert card["risk_level"] == "Medium"
 
 def test_list_agents_filtering(client, auth_headers):
     client.post("/agents", json={
         "agent_name": "Sales Agent",
         "purpose": "Sales sync",
-        "department": "Sales",
+        "owning_team": "Growth",
         "owner": "alice@company.com",
         "requested_scopes": ["crm:read"]
     }, headers=auth_headers)
@@ -127,13 +129,13 @@ def test_list_agents_filtering(client, auth_headers):
     client.post("/agents", json={
         "agent_name": "Support Agent",
         "purpose": "Support tickets",
-        "department": "Support",
+        "owning_team": "Customer Support",
         "owner": "bob@company.com",
         "requested_scopes": ["tickets:read"]
     }, headers=auth_headers)
 
-    # Filter by department=Sales
-    response = client.get("/agents?department=Sales", headers=auth_headers)
+    # Filter by owning_team=Growth
+    response = client.get("/agents?owning_team=Growth", headers=auth_headers)
     assert response.status_code == 200
     data = response.json()
     assert data["total"] == 1
@@ -143,7 +145,7 @@ def test_update_agent(client, auth_headers):
     reg_resp = client.post("/agents", json={
         "agent_name": "Inventory Bot",
         "purpose": "Check stock",
-        "department": "Ops",
+        "owning_team": "Logistics",
         "owner": "ops@company.com",
         "requested_scopes": ["inventory:read"]
     }, headers=auth_headers)
@@ -162,7 +164,7 @@ def test_soft_delete_agent(client, auth_headers):
     reg_resp = client.post("/agents", json={
         "agent_name": "Old Bot",
         "purpose": "Deprecated",
-        "department": "IT",
+        "owning_team": "Platform",
         "owner": "admin@company.com",
         "requested_scopes": ["crm:read"]
     }, headers=auth_headers)
