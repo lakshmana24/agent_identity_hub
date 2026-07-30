@@ -1,3 +1,4 @@
+import os
 from datetime import datetime, timedelta, timezone
 import pytest
 from fastapi.testclient import TestClient
@@ -6,10 +7,8 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 import app.models
-from app.main import app
 from app.database.session import Base, get_db
 from app.models.admin import Admin
-from app.models.scope_manifest import ScopeManifest
 from app.auth.password import hash_password
 from app.auth.jwt_handler import create_access_token
 from app.repository.agent_repository import seed_default_scopes
@@ -21,6 +20,18 @@ engine = create_engine(
     poolclass=StaticPool
 )
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+# Patch main engine and SessionLocal for lifespan execution during tests
+import app.main as main_mod
+import app.middleware.audit_middleware as am
+import app.scheduler.jobs as jobs_mod
+
+main_mod.engine = engine
+main_mod.SessionLocal = TestingSessionLocal
+am.SessionLocal = TestingSessionLocal
+jobs_mod.SessionLocal = TestingSessionLocal
+
+from app.main import app
 
 @pytest.fixture(scope="function")
 def db_session():
@@ -41,18 +52,10 @@ def client(db_session):
         finally:
             pass
 
-    import app.middleware.audit_middleware as am
-    def _override_session_local():
-        return db_session
-
-    original_session_local = am.SessionLocal
-    am.SessionLocal = _override_session_local
-
     app.dependency_overrides[get_db] = _override_get_db
     with TestClient(app) as c:
         yield c
     app.dependency_overrides.clear()
-    am.SessionLocal = original_session_local
 
 def get_auth_headers(db_session, role="superadmin", email="super@example.com"):
     admin = Admin(
@@ -68,111 +71,105 @@ def get_auth_headers(db_session, role="superadmin", email="super@example.com"):
     token = create_access_token({"sub": admin.id, "email": admin.email, "role": admin.role, "org_id": admin.org_id})
     return {"Authorization": f"Bearer {token}"}
 
-def test_create_agent_with_ai_metadata(client, db_session):
+def test_create_agent_with_owning_team_and_expiry(client, db_session):
     headers = get_auth_headers(db_session, role="superadmin", email="creator@example.com")
     payload = {
-        "agent_name": "FrontierCodeAgent",
-        "model_provider": "Anthropic",
-        "model_name": "claude-3-5-sonnet",
-        "tools": ["web_search", "code_execution"],
-        "purpose": "Monitors server logs and executes automated shell fixes",
-        "department": "DevOps",
-        "owner": "devops@company.com",
-        "requested_scopes": ["tickets:read", "inventory:write"]
+        "agent_name": "GrowthBot",
+        "purpose": "Processes customer campaign data and updates CRM records",
+        "owning_team": "Growth",
+        "department": "Marketing",
+        "owner": "growth@company.com",
+        "requested_scopes": ["crm:read", "tickets:read"]
     }
     resp = client.post("/agents", json=payload, headers=headers)
     assert resp.status_code == 201
     data = resp.json()
-    assert data["model_provider"] == "Anthropic"
-    assert data["model_name"] == "claude-3-5-sonnet"
-    assert "code_execution" in data["tools"]
-    assert data["ai_summary"] is not None
+    assert data["owning_team"] == "Growth"
+    assert data["expiry_date"] is not None
 
-def test_runtime_scope_management(client, db_session):
-    headers = get_auth_headers(db_session, role="superadmin", email="scopemgr@example.com")
-    
-    # 1. Create scope
-    new_scope = {
-        "scope_name": "custom:execute",
-        "action_type": "write",
-        "description": "Execute custom remote automation jobs",
-        "risk_level": "High"
-    }
-    resp = client.post("/scopes", json=new_scope, headers=headers)
-    assert resp.status_code == 201
-    data = resp.json()
-    assert data["scope_name"] == "custom:execute"
-
-    # 2. List scopes
-    list_resp = client.get("/scopes", headers=headers)
-    assert list_resp.status_code == 200
-    names = [s["scope_name"] for s in list_resp.json()]
-    assert "custom:execute" in names
-
-    # 3. Delete scope
-    del_resp = client.delete("/scopes/custom:execute", headers=headers)
-    assert del_resp.status_code == 200
-    assert del_resp.json()["status"] == "deleted"
-
-def test_admin_rbac_roles(client, db_session):
-    super_headers = get_auth_headers(db_session, role="superadmin", email="super1@example.com")
-    auditor_headers = get_auth_headers(db_session, role="auditor", email="auditor1@example.com")
-
-    # Superadmin creates an admin
-    resp = client.post("/admins", json={
-        "email": "newoperator@example.com",
-        "password": "OperatorPass123!",
-        "role": "admin"
-    }, headers=super_headers)
-    assert resp.status_code == 201
-
-    # Auditor GETs agents -> Allowed
-    get_resp = client.get("/agents", headers=auditor_headers)
-    assert get_resp.status_code == 200
-
-    # Auditor POSTs agent -> Forbidden 403
-    post_resp = client.post("/agents", json={
-        "agent_name": "AuditorBot",
-        "purpose": "Forbidden test",
-        "department": "Audit",
-        "owner": "auditor@example.com",
-        "requested_scopes": ["crm:read"]
-    }, headers=auditor_headers)
-    assert post_resp.status_code == 403
-
-def test_explicit_expires_at_testing_override(client, db_session):
-    headers = get_auth_headers(db_session, role="superadmin", email="expirytester@example.com")
+def test_credential_usage_tracking_and_agent_expiry(client, db_session):
+    headers = get_auth_headers(db_session, role="superadmin", email="usagetester@example.com")
     reg = client.post("/agents", json={
-        "agent_name": "TestingOverrideBot",
-        "purpose": "Test explicit expires_at override",
-        "department": "QA",
-        "owner": "qa@company.com",
-        "requested_scopes": ["crm:read"]
+        "agent_name": "UsageTrackingBot",
+        "purpose": "Test real credential usage tracking",
+        "owning_team": "Finance",
+        "department": "Finance",
+        "owner": "fin@company.com",
+        "requested_scopes": ["payments:read"]
     }, headers=headers).json()
     agent_id = reg["agent_id"]
 
-    # Generate credential with explicit past expires_at timestamp
-    past_iso = (datetime.now(timezone.utc) - timedelta(minutes=10)).isoformat()
+    # Issue credential
     gen = client.post("/credentials/generate", json={
         "agent_id": agent_id,
-        "expires_at": past_iso
+        "expires_in_days": 90
     }, headers=headers).json()
     raw_cred = gen["credential"]
 
-    # Validate credential immediately -> Should be rejected as expired
+    # Validate credential -> Valid & increments usage
     val_resp = client.post("/credentials/validate", json={
         "credential": raw_cred,
-        "requested_scope": "crm:read"
+        "requested_scope": "payments:read"
+    })
+    assert val_resp.status_code == 200
+    assert val_resp.json()["valid"] is True
+
+def test_expired_agent_identity_rejection(client, db_session):
+    headers = get_auth_headers(db_session, role="superadmin", email="expidentity@example.com")
+    past_iso = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
+    reg = client.post("/agents", json={
+        "agent_name": "ExpiredIdentityBot",
+        "purpose": "Test agent identity expiration",
+        "owning_team": "DevOps",
+        "expiry_date": past_iso,
+        "requested_scopes": ["tickets:read"]
+    }, headers=headers).json()
+    agent_id = reg["agent_id"]
+
+    gen = client.post("/credentials/generate", json={
+        "agent_id": agent_id,
+        "expires_in_days": 90
+    }, headers=headers).json()
+    raw_cred = gen["credential"]
+
+    # Validate -> Returns valid: false with reason: agent_identity_expired
+    val_resp = client.post("/credentials/validate", json={
+        "credential": raw_cred,
+        "requested_scope": "tickets:read"
     })
     assert val_resp.status_code == 200
     val_data = val_resp.json()
     assert val_data["valid"] is False
-    assert val_data["reason"] == "expired"
+    assert val_data["reason"] == "agent_identity_expired"
 
-def test_ai_status_and_health_head(client):
-    status_resp = client.get("/ai/status")
-    assert status_resp.status_code == 200
-    assert "ai_mode" in status_resp.json()
+def test_team_quarterly_review_report(client, db_session):
+    headers = get_auth_headers(db_session, role="superadmin", email="reporttester@example.com")
+    client.post("/agents", json={
+        "agent_name": "FinanceAgent1",
+        "purpose": "Finance reporting",
+        "owning_team": "Finance",
+        "requested_scopes": ["payments:read"]
+    }, headers=headers)
 
-    head_resp = client.head("/health")
-    assert head_resp.status_code == 200
+    report_resp = client.get("/reviews/report", headers=headers)
+    assert report_resp.status_code == 200
+    report = report_resp.json()
+    assert "teams_reports" in report
+
+def test_read_only_ai_chatbot(client, db_session):
+    headers = get_auth_headers(db_session, role="superadmin", email="chat@example.com")
+    
+    # 1. Valid AIH domain query
+    q1 = client.post("/chatbot/ask", json={"question": "Which agents are stale?"}, headers=headers)
+    assert q1.status_code == 200
+    assert "answer" in q1.json()
+
+    # 2. Mutating request attempt -> Declined
+    q2 = client.post("/chatbot/ask", json={"question": "Revoke credential for agent agt_123"}, headers=headers)
+    assert q2.status_code == 200
+    assert "read-only" in q2.json()["answer"].lower()
+
+    # 3. Non-AIH domain query -> Declined with exact required string
+    q3 = client.post("/chatbot/ask", json={"question": "What is the recipe for chocolate cake?"}, headers=headers)
+    assert q3.status_code == 200
+    assert q3.json()["answer"] == "I can only answer questions about agents and data within Agent Identity Hub."

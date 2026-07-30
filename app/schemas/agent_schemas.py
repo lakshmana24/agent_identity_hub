@@ -21,20 +21,25 @@ class ScopeResponse(BaseModel):
 class AgentCreateRequest(BaseModel):
     agent_name: str
     purpose: str
-    department: str
-    owner: str
+    owning_team: str = "Growth"
     requested_scopes: List[str]
+    expiry_date: Optional[datetime] = None  # Agent identity authorized lifetime (ISO 8601 string or default 1yr)
+    department: Optional[str] = "General"
+    owner: Optional[str] = "admin@company.com"
     model_provider: Optional[str] = "Other"
     model_name: Optional[str] = "unknown"
     tools: Optional[List[str]] = []
     agent_endpoint_url: Optional[str] = None
     deployment_environment: Optional[str] = "production"
-    risk_level: Optional[str] = None  # If provided by admin/wizard
-    risk_level_source: Optional[str] = "ai_recommended"  # "ai_recommended" | "admin_override"
+    risk_level: Optional[str] = None
+    risk_level_source: Optional[str] = "ai_recommended"
     description: Optional[str] = None
 
 class AgentUpdateRequest(BaseModel):
+    agent_name: Optional[str] = None
     purpose: Optional[str] = None
+    owning_team: Optional[str] = None
+    expiry_date: Optional[datetime] = None
     department: Optional[str] = None
     owner: Optional[str] = None
     requested_scopes: Optional[List[str]] = None
@@ -50,20 +55,22 @@ class AgentUpdateRequest(BaseModel):
 class IdentityCard(BaseModel):
     agent_id: str
     agent_name: str
+    owning_team: str = "Growth"
+    purpose: str
+    department: str = "General"
+    owner: str = "admin@company.com"
+    expiry_date: Optional[datetime] = None
     model_provider: str = "Other"
     model_name: str = "unknown"
     tools: List[str] = []
     agent_endpoint_url: Optional[str] = None
     deployment_environment: str = "production"
-    purpose: str
-    department: str
-    owner: str
     description: Optional[str] = None
     risk_level: str
     risk_level_source: str = "ai_recommended"
     allowed_scopes: List[str]
     credential_status: str  # "not_issued", "active", "expired", "revoked"
-    expiry_date: Optional[datetime] = None
+    active_credential_expires_at: Optional[datetime] = None  # Credential's own expires_at
     lifecycle_status: str  # "active", "suspended", "deprovisioned"
     security_score: int
     flagged_for_review: bool = False

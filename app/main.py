@@ -16,7 +16,8 @@ from app.api import (
     audit_router,
     review_router,
     dashboard_router,
-    admin_router
+    admin_router,
+    chatbot_router
 )
 from app.middleware.audit_middleware import AuditMiddleware
 from app.repository.agent_repository import seed_default_scopes
@@ -71,6 +72,7 @@ app.include_router(audit_router.router)
 app.include_router(review_router.router)
 app.include_router(dashboard_router.router)
 app.include_router(admin_router.router)
+app.include_router(chatbot_router.router)
 
 @app.get("/health")
 @app.head("/health")

@@ -10,13 +10,14 @@ from app.services.governance_service import compute_security_score
 logger = logging.getLogger("aih.scheduler")
 
 def check_expired_credentials_job():
-    logger.info("Executing scheduled job: check_expired_credentials")
+    logger.info("Executing scheduled job: check_expired_credentials and check_agent_expirations")
     db = SessionLocal()
     try:
         now = datetime.now(timezone.utc)
+        
+        # 1. Sweep expired credentials
         active_creds = db.query(Credential).filter(Credential.active == True).all()
-
-        expired_count = 0
+        expired_cred_count = 0
         for cred in active_creds:
             exp = cred.expires_at
             if exp and exp.tzinfo is None:
@@ -24,9 +25,8 @@ def check_expired_credentials_job():
 
             if exp < now:
                 cred.active = False
-                expired_count += 1
-                # Log audit entry for auto-expiry
-                audit = AuditLog(
+                expired_cred_count += 1
+                db.add(AuditLog(
                     action="credential.auto_expire",
                     method="SYSTEM",
                     path="/scheduler/check_expired_credentials",
@@ -36,11 +36,37 @@ def check_expired_credentials_job():
                     status="success",
                     metadata_json={"credential_id": cred.id, "reason": "Expired past valid date"},
                     timestamp=now
-                )
-                db.add(audit)
+                ))
+
+        # 2. Sweep expired agent identities
+        active_agents = db.query(Agent).filter(Agent.lifecycle_status == "active").all()
+        decommissioned_agent_count = 0
+        for agent in active_agents:
+            ag_exp = agent.expiry_date
+            if ag_exp and ag_exp.tzinfo is None:
+                ag_exp = ag_exp.replace(tzinfo=timezone.utc)
+
+            if ag_exp and ag_exp < now:
+                agent.lifecycle_status = "decommissioned"
+                decommissioned_agent_count += 1
+                # Deactivate all credentials for this agent
+                for c in db.query(Credential).filter(Credential.agent_id == agent.id, Credential.active == True).all():
+                    c.active = False
+
+                db.add(AuditLog(
+                    action="agent.auto_decommission",
+                    method="SYSTEM",
+                    path="/scheduler/check_agent_expirations",
+                    agent_id=agent.id,
+                    performed_by="system_scheduler",
+                    status_code=200,
+                    status="success",
+                    metadata_json={"reason": "Agent identity authorized lifetime expired"},
+                    timestamp=now
+                ))
 
         db.commit()
-        logger.info(f"check_expired_credentials job completed. Deactivated {expired_count} expired credentials.")
+        logger.info(f"Sweeper job completed. Deactivated {expired_cred_count} credentials, decommissioned {decommissioned_agent_count} agents.")
     except Exception as e:
         logger.error(f"Error in check_expired_credentials_job: {e}")
     finally:
@@ -68,7 +94,6 @@ def generate_governance_reviews_job():
             cred = db.query(Credential).filter(Credential.agent_id == agent.id, Credential.active == True).first()
             score, breakdown = compute_security_score(agent, cred)
 
-            # Determine recommendation
             if agent.flagged_for_review or (cred and (datetime.now(timezone.utc) - (cred.created_at.replace(tzinfo=timezone.utc) if cred.created_at.tzinfo is None else cred.created_at)).days > 90):
                 rec = "review permissions"
                 reasoning = "Agent credential age exceeds 90 days or agent has been flagged for inactivity review."

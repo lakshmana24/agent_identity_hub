@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { Shield, KeyRound, RefreshCw, AlertOctagon, Trash2, ArrowLeft, CheckCircle, Copy, Clock, ShieldAlert, Cpu, Wrench, Globe } from 'lucide-react';
+import { Shield, KeyRound, RefreshCw, AlertOctagon, Trash2, ArrowLeft, CheckCircle, Copy, Clock, ShieldAlert, Users, Calendar, Activity } from 'lucide-react';
 import { api } from '../api/client';
 
 export const AgentDetailPage = () => {
@@ -157,12 +157,12 @@ export const AgentDetailPage = () => {
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.25rem' }}>
             <h2 style={{ fontSize: '1.75rem', fontWeight: 700 }}>{agent.agent_name}</h2>
             <span className={`badge badge-${agent.lifecycle_status}`}>{agent.lifecycle_status}</span>
-            <span className={`badge badge-risk-${agent.risk_level.toLowerCase()}`}>{agent.risk_level} Risk ({agent.risk_level_source})</span>
+            <span className={`badge badge-risk-${agent.risk_level.toLowerCase()}`}>{agent.risk_level} Risk</span>
           </div>
           <div style={{ color: 'var(--text-dim)', fontSize: '0.875rem' }}>ID: {agent.agent_id} • Created {new Date(agent.created_at).toLocaleDateString()}</div>
         </div>
 
-        {/* Action Controls (Disabled for Auditor) */}
+        {/* Action Controls */}
         {!isAuditor && (
           <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap' }}>
             {agent.credential_status === 'not_issued' ? (
@@ -193,7 +193,7 @@ export const AgentDetailPage = () => {
 
       {/* Main Grid */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '1.5rem' }}>
-        {/* Identity Specifications Card */}
+        {/* Identity Record Card */}
         <div className="glass-card" style={{ padding: '1.75rem' }}>
           <h3 style={{ fontSize: '1.1rem', fontWeight: 600, marginBottom: '1.25rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>Identity Specifications</h3>
           
@@ -203,66 +203,42 @@ export const AgentDetailPage = () => {
               <p style={{ marginTop: '0.25rem', color: '#fff' }}>{agent.purpose}</p>
             </div>
 
-            {/* AI Architecture Row */}
-            <div style={{ background: 'rgba(15, 23, 42, 0.6)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', padding: '1rem' }}>
-              <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--accent-cyan)', display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.6rem' }}>
-                <Cpu size={16} /> AI Architecture Specs
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem', fontSize: '0.85rem' }}>
-                <div>
-                  <span style={{ color: 'var(--text-dim)', fontSize: '0.75rem' }}>Provider</span>
-                  <div style={{ fontWeight: 600 }}>{agent.model_provider}</div>
-                </div>
-                <div>
-                  <span style={{ color: 'var(--text-dim)', fontSize: '0.75rem' }}>Model</span>
-                  <div style={{ fontWeight: 600 }}>{agent.model_name}</div>
-                </div>
-                <div>
-                  <span style={{ color: 'var(--text-dim)', fontSize: '0.75rem' }}>Env</span>
-                  <div style={{ fontWeight: 600, textTransform: 'capitalize' }}>{agent.deployment_environment}</div>
-                </div>
-              </div>
-            </div>
-
-            {/* Tools */}
-            {agent.tools && agent.tools.length > 0 && (
+            {/* Owning Team & Owner Details */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', background: 'rgba(15, 23, 42, 0.6)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', padding: '1rem' }}>
               <div>
-                <span style={{ color: 'var(--text-dim)', fontSize: '0.8rem', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                  <Wrench size={14} /> Capability Tools ({agent.tools.length})
+                <span style={{ color: 'var(--text-dim)', fontSize: '0.75rem', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <Users size={14} /> Owning Team
                 </span>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginTop: '0.4rem' }}>
-                  {agent.tools.map((t) => (
-                    <span key={t} style={{ background: 'rgba(139, 92, 246, 0.15)', border: '1px solid rgba(139, 92, 246, 0.3)', color: '#c084fc', padding: '0.2rem 0.6rem', borderRadius: 'var(--radius-sm)', fontSize: '0.8rem', fontFamily: 'monospace' }}>
-                      {t}
-                    </span>
-                  ))}
-                </div>
+                <div style={{ fontWeight: 700, fontSize: '1rem', color: 'var(--accent-cyan)', marginTop: '0.2rem' }}>{agent.owning_team}</div>
               </div>
-            )}
-
-            {/* Owner & Department */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
               <div>
-                <span style={{ color: 'var(--text-dim)', fontSize: '0.8rem', textTransform: 'uppercase' }}>Department</span>
+                <span style={{ color: 'var(--text-dim)', fontSize: '0.75rem', textTransform: 'uppercase' }}>Department</span>
                 <div style={{ fontWeight: 600, marginTop: '0.2rem' }}>{agent.department}</div>
               </div>
+            </div>
+
+            {/* Lifetime & Expiry Dates */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
               <div>
-                <span style={{ color: 'var(--text-dim)', fontSize: '0.8rem', textTransform: 'uppercase' }}>Owner Email</span>
-                <div style={{ fontWeight: 600, marginTop: '0.2rem' }}>{agent.owner}</div>
+                <span style={{ color: 'var(--text-dim)', fontSize: '0.75rem', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <Calendar size={14} /> Agent Identity Expiry
+                </span>
+                <div style={{ fontWeight: 600, marginTop: '0.2rem', color: agent.expiry_date ? '#fca5a5' : 'var(--text-muted)' }}>
+                  {agent.expiry_date ? new Date(agent.expiry_date).toLocaleString() : 'No Limit'}
+                </div>
+              </div>
+              <div>
+                <span style={{ color: 'var(--text-dim)', fontSize: '0.75rem', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <Clock size={14} /> Active Credential Expiry
+                </span>
+                <div style={{ fontWeight: 600, marginTop: '0.2rem', color: agent.active_credential_expires_at ? '#93c5fd' : 'var(--text-muted)' }}>
+                  {agent.active_credential_expires_at ? new Date(agent.active_credential_expires_at).toLocaleString() : 'None Issued'}
+                </div>
               </div>
             </div>
 
-            {agent.agent_endpoint_url && (
-              <div>
-                <span style={{ color: 'var(--text-dim)', fontSize: '0.8rem', textTransform: 'uppercase', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                  <Globe size={14} /> Webhook Endpoint URL
-                </span>
-                <div style={{ fontFamily: 'monospace', fontSize: '0.85rem', color: 'var(--accent-cyan)', marginTop: '0.2rem' }}>{agent.agent_endpoint_url}</div>
-              </div>
-            )}
-
             <div>
-              <span style={{ color: 'var(--text-dim)', fontSize: '0.8rem', textTransform: 'uppercase' }}>Granted API Scopes</span>
+              <span style={{ color: 'var(--text-dim)', fontSize: '0.8rem', textTransform: 'uppercase' }}>Approved Tool Scopes</span>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginTop: '0.4rem' }}>
                 {agent.allowed_scopes.map((scope) => (
                   <span key={scope} style={{ background: 'rgba(59, 130, 246, 0.15)', border: '1px solid rgba(59, 130, 246, 0.3)', color: '#93c5fd', padding: '0.2rem 0.6rem', borderRadius: 'var(--radius-sm)', fontSize: '0.8rem', fontFamily: 'monospace' }}>
@@ -274,14 +250,14 @@ export const AgentDetailPage = () => {
 
             {agent.ai_summary && (
               <div style={{ background: 'rgba(15, 23, 42, 0.6)', border: '1px solid var(--border-color)', borderRadius: 'var(--radius-md)', padding: '1rem', marginTop: '0.5rem' }}>
-                <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--accent-purple)', textTransform: 'uppercase' }}>AI Identity Card Summary</span>
+                <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--accent-purple)', textTransform: 'uppercase' }}>AI Identity Record Summary</span>
                 <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>{agent.ai_summary}</p>
               </div>
             )}
           </div>
         </div>
 
-        {/* Security Governance Score */}
+        {/* Governance & Compliance Score Card */}
         <div className="glass-card" style={{ padding: '1.75rem' }}>
           <h3 style={{ fontSize: '1.1rem', fontWeight: 600, marginBottom: '1.25rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>Security Posture & Compliance</h3>
           

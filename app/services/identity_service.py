@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import List, Optional
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
@@ -35,7 +35,7 @@ def _calculate_risk_from_scopes(scopes_manifest) -> str:
 def build_identity_card(db: Session, agent: Agent) -> IdentityCard:
     cred = get_latest_credential_by_agent_id(db, agent.id)
     cred_status = "not_issued"
-    exp_date = None
+    active_cred_exp = None
 
     if cred:
         now = datetime.now(timezone.utc)
@@ -49,25 +49,32 @@ def build_identity_card(db: Session, agent: Agent) -> IdentityCard:
             cred_status = "expired"
         else:
             cred_status = "active"
-        exp_date = exp
+        active_cred_exp = exp
+
+    # Check agent identity authorized lifetime expiry_date
+    agent_exp = agent.expiry_date
+    if agent_exp and agent_exp.tzinfo is None:
+        agent_exp = agent_exp.replace(tzinfo=timezone.utc)
 
     return IdentityCard(
         agent_id=agent.id,
         agent_name=agent.agent_name,
+        owning_team=getattr(agent, "owning_team", "Growth") or "Growth",
+        purpose=agent.purpose,
+        department=agent.department or "General",
+        owner=agent.owner or "admin@company.com",
+        expiry_date=agent_exp,
         model_provider=agent.model_provider or "Other",
         model_name=agent.model_name or "unknown",
         tools=agent.tools or [],
         agent_endpoint_url=agent.agent_endpoint_url,
         deployment_environment=agent.deployment_environment or "production",
-        purpose=agent.purpose,
-        department=agent.department,
-        owner=agent.owner,
         description=agent.description,
         risk_level=agent.risk_level,
         risk_level_source=agent.risk_level_source or "ai_recommended",
         allowed_scopes=agent.allowed_scopes or [],
         credential_status=cred_status,
-        expiry_date=exp_date,
+        active_credential_expires_at=active_cred_exp,
         lifecycle_status=agent.lifecycle_status,
         security_score=agent.security_score,
         flagged_for_review=agent.flagged_for_review,
@@ -97,12 +104,20 @@ def register_agent_service(db: Session, payload: AgentCreateRequest) -> Identity
         final_risk = _calculate_risk_from_scopes(found_scopes)
         risk_source = "ai_recommended"
 
-    # 3. Generate AI summary automatically if not provided
+    # 3. Resolve agent identity authorized lifetime expiry_date (default 1 year)
+    now = datetime.now(timezone.utc)
+    if payload.expiry_date:
+        agent_exp = payload.expiry_date if payload.expiry_date.tzinfo else payload.expiry_date.replace(tzinfo=timezone.utc)
+    else:
+        agent_exp = now + timedelta(days=365)
+
+    # 4. Generate AI summary automatically
     ai_client = get_ai_client()
     summary_text = ai_client.generate_identity_summary({
         "agent_name": payload.agent_name,
         "purpose": payload.purpose,
-        "department": payload.department,
+        "department": payload.department or "General",
+        "owning_team": payload.owning_team,
         "scopes": requested_scopes,
         "risk_level": final_risk,
         "model_provider": payload.model_provider,
@@ -110,17 +125,19 @@ def register_agent_service(db: Session, payload: AgentCreateRequest) -> Identity
         "tools": payload.tools
     })
 
-    # 4. Create agent record
+    # 5. Create agent record
     agent_data = {
         "agent_name": payload.agent_name,
+        "owning_team": payload.owning_team,
+        "purpose": payload.purpose,
+        "department": payload.department or "General",
+        "owner": payload.owner or "admin@company.com",
+        "expiry_date": agent_exp,
         "model_provider": payload.model_provider or "Other",
         "model_name": payload.model_name or "unknown",
         "tools": payload.tools or [],
         "agent_endpoint_url": payload.agent_endpoint_url,
         "deployment_environment": payload.deployment_environment or "production",
-        "purpose": payload.purpose,
-        "department": payload.department,
-        "owner": payload.owner,
         "description": payload.description,
         "risk_level": final_risk,
         "risk_level_source": risk_source,
@@ -143,11 +160,12 @@ def list_agents_service(
     db: Session,
     status: Optional[str] = None,
     department: Optional[str] = None,
+    owning_team: Optional[str] = None,
     risk_level: Optional[str] = None,
     page: int = 1,
     page_size: int = 20
 ) -> AgentListResponse:
-    agents, total = get_agents(db, status=status, department=department, risk_level=risk_level, page=page, page_size=page_size)
+    agents, total = get_agents(db, status=status, department=department, owning_team=owning_team, risk_level=risk_level, page=page, page_size=page_size)
     cards = [build_identity_card(db, a) for a in agents]
     return AgentListResponse(
         total=total,

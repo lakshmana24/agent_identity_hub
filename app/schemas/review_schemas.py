@@ -22,10 +22,12 @@ class ReviewReportListResponse(BaseModel):
 class StaleAgentResponse(BaseModel):
     agent_id: str
     agent_name: str
-    department: str
-    owner: str
-    last_activity_at: datetime
+    owning_team: str = "Growth"
+    department: str = "General"
+    owner: str = "admin@company.com"
+    last_used_at: Optional[datetime] = None
     days_inactive: int
-    flagged_for_review: bool
+    call_count: int = 0
+    flagged_for_review: bool = True
 
     model_config = ConfigDict(from_attributes=True)

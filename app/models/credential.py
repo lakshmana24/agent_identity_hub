@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey
+from sqlalchemy import Column, String, Integer, Boolean, DateTime, ForeignKey
 from app.database.session import Base
 
 def generate_credential_id():
@@ -18,5 +18,7 @@ class Credential(Base):
     rotated_at = Column(DateTime(timezone=True), nullable=True)
     revoked_at = Column(DateTime(timezone=True), nullable=True)
     revocation_reason = Column(String, nullable=True)
+    last_used_at = Column(DateTime(timezone=True), nullable=True)  # Tracked on valid /credentials/validate calls
+    call_count = Column(Integer, nullable=False, default=0)        # Incremented on valid /credentials/validate calls
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)
     updated_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc), nullable=False)

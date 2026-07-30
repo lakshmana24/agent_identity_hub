@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { Sidebar } from './components/Sidebar';
+import { ChatbotWidget } from './components/ChatbotWidget';
 import { LoginPage } from './pages/LoginPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { AgentListPage } from './pages/AgentListPage';
@@ -20,6 +21,7 @@ const ProtectedLayout = () => {
       <main className="main-content">
         <Outlet />
       </main>
+      <ChatbotWidget />
     </div>
   );
 };

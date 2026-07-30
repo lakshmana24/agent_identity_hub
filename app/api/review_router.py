@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 from app.database.session import get_db
 from app.auth.dependencies import get_current_admin
 from app.schemas.review_schemas import ReviewReportListResponse, ReviewReportResponse, StaleAgentResponse
-from app.repository.review_repository import find_stale_agents, get_review_reports
+from app.repository.review_repository import find_stale_agents, get_review_reports, generate_team_quarterly_report
 from app.scheduler.jobs import (
     check_expired_credentials_job,
     detect_stale_agents_job,
@@ -23,6 +23,14 @@ def get_stale_agents(
 ):
     stale_data = find_stale_agents(db, inactivity_days=inactivity_days)
     return [StaleAgentResponse.model_validate(item) for item in stale_data]
+
+@router.get("/report")
+def get_quarterly_review_report(
+    owning_team: Optional[str] = Query(None, description="Filter report by owning team (e.g. Growth, Finance, DevOps)"),
+    db: Session = Depends(get_db),
+    current_admin: Admin = Depends(get_current_admin)
+):
+    return generate_team_quarterly_report(db, owning_team=owning_team)
 
 @router.get("", response_model=ReviewReportListResponse)
 def list_review_reports(

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Bot, Plus, Search, Filter, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Bot, Plus, Search, Filter, ChevronLeft, ChevronRight, Users } from 'lucide-react';
 import { api } from '../api/client';
 
 export const AgentListPage = () => {
@@ -9,21 +9,21 @@ export const AgentListPage = () => {
   const [page, setPage] = useState(1);
   const [pageSize] = useState(10);
   const [statusFilter, setStatusFilter] = useState('');
-  const [deptFilter, setDeptFilter] = useState('');
+  const [teamFilter, setTeamFilter] = useState('');
   const [riskFilter, setRiskFilter] = useState('');
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetchAgents();
-  }, [page, statusFilter, deptFilter, riskFilter]);
+  }, [page, statusFilter, teamFilter, riskFilter]);
 
   const fetchAgents = async () => {
     setLoading(true);
     try {
       const params = { page, page_size: pageSize };
       if (statusFilter) params.status = statusFilter;
-      if (deptFilter) params.department = deptFilter;
+      if (teamFilter) params.owning_team = teamFilter;
       if (riskFilter) params.risk_level = riskFilter;
 
       const res = await api.get('/agents', { params });
@@ -45,7 +45,7 @@ export const AgentListPage = () => {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
         <div>
           <h2 style={{ fontSize: '1.75rem', fontWeight: 700 }}>Agent Identity Directory</h2>
-          <p style={{ color: 'var(--text-muted)' }}>Manage identities, granted scopes, and lifecycle states</p>
+          <p style={{ color: 'var(--text-muted)' }}>Manage identities, granted tool scopes, and lifecycle states</p>
         </div>
         <Link to="/agents/register" className="btn btn-primary">
           <Plus size={18} />
@@ -77,6 +77,15 @@ export const AgentListPage = () => {
             <option value="deprovisioned">Deprovisioned</option>
           </select>
 
+          <select className="select-field" style={{ width: '140px' }} value={teamFilter} onChange={(e) => { setTeamFilter(e.target.value); setPage(1); }}>
+            <option value="">All Teams</option>
+            <option value="Growth">Growth</option>
+            <option value="Finance">Finance</option>
+            <option value="DevOps">DevOps</option>
+            <option value="Customer Support">Customer Support</option>
+            <option value="Platform">Platform</option>
+          </select>
+
           <select className="select-field" style={{ width: '130px' }} value={riskFilter} onChange={(e) => { setRiskFilter(e.target.value); setPage(1); }}>
             <option value="">All Risks</option>
             <option value="Low">Low Risk</option>
@@ -84,15 +93,6 @@ export const AgentListPage = () => {
             <option value="High">High Risk</option>
             <option value="Critical">Critical Risk</option>
           </select>
-
-          <input
-            type="text"
-            className="input-field"
-            style={{ width: '140px' }}
-            placeholder="Department"
-            value={deptFilter}
-            onChange={(e) => { setDeptFilter(e.target.value); setPage(1); }}
-          />
         </div>
       </div>
 
@@ -107,10 +107,9 @@ export const AgentListPage = () => {
             <thead>
               <tr>
                 <th>Agent Name & ID</th>
+                <th>Owning Team</th>
                 <th>Department</th>
-                <th>Owner</th>
                 <th>Risk Level</th>
-                <th>Security Score</th>
                 <th>Credential</th>
                 <th>Status</th>
                 <th>Action</th>
@@ -123,16 +122,15 @@ export const AgentListPage = () => {
                     <div style={{ fontWeight: 600, color: '#fff' }}>{agent.agent_name}</div>
                     <div style={{ fontSize: '0.75rem', color: 'var(--text-dim)' }}>{agent.agent_id}</div>
                   </td>
-                  <td>{agent.department}</td>
-                  <td style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{agent.owner}</td>
+                  <td>
+                    <span style={{ fontWeight: 600, color: 'var(--accent-cyan)', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+                      <Users size={14} /> {agent.owning_team}
+                    </span>
+                  </td>
+                  <td style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{agent.department}</td>
                   <td>
                     <span className={`badge badge-risk-${agent.risk_level.toLowerCase()}`}>
                       {agent.risk_level}
-                    </span>
-                  </td>
-                  <td>
-                    <span style={{ fontWeight: 600, color: agent.security_score >= 80 ? 'var(--status-active)' : agent.security_score >= 60 ? 'var(--status-warning)' : 'var(--status-danger)' }}>
-                      {agent.security_score}/100
                     </span>
                   </td>
                   <td>

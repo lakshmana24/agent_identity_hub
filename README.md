@@ -1,34 +1,42 @@
 # Agent Identity Hub (AIH)
 
-> **Enterprise-Grade Identity & Access Management (IAM) Purpose-Built for AI Agents** — "Okta for AI Agents"
+> **Enterprise-Grade Machine Identity & Access Governance Purpose-Built for AI Agents** — *"Okta for AI Agents"*
 
-Agent Identity Hub (AIH) provides every AI agent in your organization with a managed identity, scoped credentials, AI governance analysis, lifecycle management, and immutable audit logging — replacing insecure, over-privileged static API keys.
+Human employees get identity records, role-based scope limits, lifecycle management, credential rotation, and quarterly access reviews. AI agents historically just get a static, over-privileged API key pasted into an environment variable — with zero scope enforcement, no expiry, and no usage visibility. **Agent Identity Hub (AIH)** closes that security gap by provisioning and managing machine identities for AI agents with the same security rigour applied to human enterprise accounts.
 
 ---
 
 ## 🚀 Live Production Deployment
 
-- **Live Web SPA & API Base URL**: `https://agent-identity-hub.onrender.com`
+- **Live Web Application & API Base URL**: `https://agent-identity-hub.onrender.com`
 - **Interactive Swagger API Docs**: `https://agent-identity-hub.onrender.com/docs`
-- **Live AI Client & Health Status**: `https://agent-identity-hub.onrender.com/health` & `https://agent-identity-hub.onrender.com/ai/status`
+- **System Health Endpoint**: `https://agent-identity-hub.onrender.com/health`
 
-### Live Production Deployment Verification Checklist
-- [x] **Multi-Worker Concurrency**: Gunicorn running 4 Uvicorn worker processes with 120s worker timeout.
-- [x] **Production Database**: Connected to serverless Neon PostgreSQL with connection pool safety (`pool_size=10`, `max_overflow=20`, `pool_pre_ping=True`).
-- [x] **Live LLM Integration**: Powered by Google Gemini 1.5 Flash (`AI_MODE=live`) with automatic keyword fallback heuristics.
-- [x] **Single-Container Delivery**: Multi-stage Docker image serving both FastAPI backend and Vite React SPA.
+### Live Production Architecture & Deployment Checklist
+- [x] **Multi-Worker Concurrency**: Gunicorn running 4 Uvicorn worker processes (`--timeout 120 --keep-alive 5`).
+- [x] **Production Serverless Database**: Connected to Neon PostgreSQL with connection pool safety (`pool_size=10`, `max_overflow=20`, `pool_pre_ping=True`) and auto-schema migrations.
+- [x] **Single-Container Delivery**: Multi-stage Docker image serving FastAPI backend and Vite React SPA.
+- [x] **AI Governance Engine**: Powered by Google Gemini 1.5 Flash (`AI_MODE=live`) with keyword-based fallback heuristics.
+
+---
+
+## 💡 How AIH Fits into the AI Stack
+
+### Credential Relationship & Boundaries
+- **Access Credential vs. LLM Provider Key**: AIH issues and governs the agent's *enterprise access credential* (`aih_{agent_id}_{nonce}_{secret}`) used to access company tools and API scopes. AIH does **NOT** manage or store the agent's underlying LLM provider API key (e.g., OpenAI API key, Anthropic API key), which remains an internal runtime configuration outside AIH's boundary.
+- **Enforcement Architecture**: AIH operates as an authoritative **Governance & Validation Service**. Downstream enterprise services or API gateways call `POST /credentials/validate` before honoring an agent request. AIH is an IAM authority, not a inline network proxy.
 
 ---
 
 ## 🔑 Demo & Evaluation Credentials
 
-These seeded accounts are provided for demonstration and evaluation purposes:
+Seeded demo accounts available for immediate evaluation:
 
-| Email | Password | Role | Permissions & Access Scope |
+| Email | Password | Role | System Permissions |
 | :--- | :--- | :--- | :--- |
-| `admin@aih.dev` | `AdminPass123!` | **superadmin** | Full system control: admin management (`/admins`), scope manifest mutation (`/scopes`), agent & credential CRUD. |
-| `operator@aih.dev` | `OperatorPass123!` | **admin** | Full agent, credential, and governance CRUD; prohibited from managing admin accounts or creating scope manifests. |
-| `auditor@aih.dev` | `AuditorPass123!` | **auditor** | Read-only access across directory, dashboard, review reports, and audit logs; 403 Forbidden on all mutating endpoints. |
+| `admin@aih.dev` | `AdminPass123!` | **superadmin** | Full system control: admin account management (`/admins`), scope manifest mutation (`/scopes`), agent & credential CRUD. |
+| `operator@aih.dev` | `OperatorPass123!` | **admin** | Full agent registration, credential lifecycle, and review CRUD. |
+| `auditor@aih.dev` | `AuditorPass123!` | **auditor** | Read-only access across directory, dashboard, reports, and audit logs; 403 Forbidden on all mutating routes. |
 
 ---
 
@@ -36,22 +44,22 @@ These seeded accounts are provided for demonstration and evaluation purposes:
 
 ```text
 ├── app/
-│   ├── ai/                      # Module 5: Gemini 1.5 Flash client & mock heuristics fallback
-│   ├── api/                     # API Routers (Auth, Agents, Credentials, Governance, Audit, Reviews, Dashboard, Admins)
-│   ├── auth/                    # Module 1: JWT tokens, direct bcrypt password hashing, RBAC dependencies
+│   ├── ai/                      # Gemini 1.5 Flash client & fallback heuristics
+│   ├── api/                     # API Routers (Auth, Agents, Credentials, Governance, Audit, Reviews, Dashboard, Admins, Chatbot)
+│   ├── auth/                    # JWT tokens, bcrypt hashing, RBAC dependencies
 │   ├── config/                  # Pydantic Settings loading environment variables
 │   ├── database/                # SQLAlchemy session, engine pooling, and auto-migrations
-│   ├── middleware/              # Module 6: Non-blocking post-response AuditMiddleware
+│   ├── middleware/              # Non-blocking post-response AuditMiddleware (excludes HEAD & health probes)
 │   ├── models/                  # SQLAlchemy ORM models (Admin, Agent, ScopeManifest, Credential, AuditLog, ReviewReport)
-│   ├── repository/              # Optimized DB queries and aggregate SQL metrics
-│   ├── scheduler/               # Module 7: APScheduler background jobs (auto-expire, 30d stale detection, reviews)
+│   ├── repository/              # DB queries, real credential usage tracking, and team quarterly reports
+│   ├── scheduler/               # APScheduler background sweeper (auto-expire, 30d stale detection, reviews)
 │   ├── schemas/                 # Pydantic validation schemas
 │   └── services/                # Core business logic services
-├── frontend/                    # Module 9: React + Vite SPA (Dark glassmorphism UI, Lucide icons)
-├── scripts/                     # Seed scripts for demo accounts and scopes
+├── frontend/                    # Vite + React 18 SPA (Dark UI, dynamic forms, Chatbot widget)
+├── scripts/                     # Seed scripts for demo accounts and default scopes
 ├── tests/                       # Complete Pytest unit test suite (39/39 passing)
 ├── Dockerfile                   # Multi-stage production container build
-├── docker-compose.yml           # Local multi-container development environment
+├── docker-compose.yml           # Local multi-container environment
 └── requirements.txt             # Python production dependencies
 ```
 
@@ -62,14 +70,14 @@ These seeded accounts are provided for demonstration and evaluation purposes:
 ### Prerequisites
 - Python 3.12+
 - Node.js v20+ & npm
-- Docker & Docker Compose (optional for containerized run)
+- Docker & Docker Compose (optional)
 
 ### Environment Setup
 1. Copy `.env.example` to create your local `.env`:
    ```bash
    cp .env.example .env
    ```
-2. Configure placeholder values in `.env`:
+2. Set configuration values:
    ```env
    DATABASE_URL=sqlite:///./aih_local.db
    JWT_SECRET=super_secret_jwt_signing_key_replace_in_production_32bytes
@@ -95,11 +103,11 @@ Access the application at `http://localhost:8000`.
    ```bash
    python scripts/seed_admin.py
    ```
-3. Run FastAPI backend server:
+3. Launch FastAPI backend:
    ```bash
    uvicorn app.main:app --reload --port 8000
    ```
-4. Build or launch Frontend React SPA:
+4. Build or run Frontend React SPA:
    ```bash
    cd frontend
    npm install
@@ -118,119 +126,117 @@ curl -X POST "http://localhost:8000/auth/login" \
   -H "Content-Type: application/json" \
   -d '{"email": "admin@aih.dev", "password": "AdminPass123!"}'
 ```
-*Save the returned `access_token` as `TOKEN`.*
+*Save returned `access_token` as `TOKEN`.*
 
 ---
 
-### 2. Verify Live AI Status
-```bash
-curl -X GET "http://localhost:8000/ai/status"
-```
-*Returns `"ai_mode": "live"` (or `"mock"`) and ping status.*
+### 2. Register 3 Agents with Different Tool Scopes
 
----
-
-### 3. Register 3 AI Agents with Distinct Profiles
-
-#### Agent A — Customer Support Reply Bot (Low Risk)
+#### Agent 1 — Customer Support Reply Agent (Team: Customer Support)
 ```bash
 curl -X POST "http://localhost:8000/agents" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
     "agent_name": "SupportReplyBot",
-    "model_provider": "OpenAI",
-    "model_name": "gpt-4o-mini",
-    "tools": ["web_search"],
-    "purpose": "Reads customer support tickets and drafts helpful email replies",
-    "department": "Customer Support",
-    "owner": "support@company.com",
+    "purpose": "Reads customer tickets and drafts email replies",
+    "owning_team": "Customer Support",
     "requested_scopes": ["tickets:read", "crm:read"]
   }'
 ```
 
-#### Agent B — Financial Refund Processor (High Risk)
+#### Agent 2 — Financial Refund Agent (Team: Finance)
 ```bash
 curl -X POST "http://localhost:8000/agents" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "agent_name": "StripeRefundBot",
-    "model_provider": "Anthropic",
-    "model_name": "claude-3-5-sonnet",
-    "tools": ["payment_gateway", "send_email"],
-    "purpose": "Processes customer financial refunds via Stripe and updates billing ledger",
-    "department": "Finance",
-    "owner": "billing@company.com",
-    "requested_scopes": ["payments:read", "crm:read"]
+    "agent_name": "RefundProcessorBot",
+    "purpose": "Processes customer financial refunds and updates ledger",
+    "owning_team": "Finance",
+    "requested_scopes": ["payments:read", "payments:write"]
   }'
 ```
 
-#### Agent C — Automated DevOps Log Fixer (Critical Risk)
+#### Agent 3 — Inventory Monitoring Agent (Team: Logistics)
 ```bash
 curl -X POST "http://localhost:8000/agents" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "agent_name": "DevOpsLogFixer",
-    "model_provider": "Google",
-    "model_name": "gemini-1.5-pro",
-    "tools": ["code_execution", "terminal_access"],
-    "purpose": "Monitors server logs for anomalies and executes remote shell remediation scripts",
-    "department": "DevOps",
-    "owner": "infra@company.com",
-    "requested_scopes": ["inventory:read", "tickets:write"]
+    "agent_name": "InventoryMonitorBot",
+    "purpose": "Monitors stock levels and updates product counts",
+    "owning_team": "Logistics",
+    "requested_scopes": ["inventory:read", "inventory:write"]
   }'
 ```
 
 ---
 
-### 4. Issue Credential for Agent A
+### 3. Issue Credential & Verify Scope Enforcement
+
+#### Issue Credential for Agent 1 (SupportReplyBot)
 ```bash
 curl -X POST "http://localhost:8000/credentials/generate" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"agent_id": "<AGENT_A_ID>", "expires_in_days": 90}'
+  -d '{"agent_id": "<AGENT_1_ID>", "expires_in_days": 90}'
 ```
-*Save returned `credential` raw secret string.*
+*Save returned `credential` secret.*
 
----
-
-### 5. Prove Scope Authorization Enforcement
-#### A. Valid Authorized Call (Scope Granted)
+#### A. Authorized Request (Read-Only Scope Granted)
 ```bash
 curl -X POST "http://localhost:8000/credentials/validate" \
   -H "Content-Type: application/json" \
   -d '{
-    "credential": "<RAW_CREDENTIAL_SECRET>",
+    "credential": "<AGENT_1_CREDENTIAL_SECRET>",
     "requested_scope": "tickets:read"
   }'
 ```
-*Expected Output:* `{"valid": true, "agent_id": "agt_...", "scopes": ["crm:read", "tickets:read"]}`
+*Expected Result:* `{"valid": true, "agent_id": "agt_...", "scopes": ["tickets:read", "crm:read"]}`
+*(Note: Valid validation updates `last_used_at = now()` and increments `call_count` in real-time).*
 
-#### B. Rejected Unauthorized Call (Scope Not Granted)
+#### B. Rejected Request (Write Scope Not Granted)
 ```bash
 curl -X POST "http://localhost:8000/credentials/validate" \
   -H "Content-Type: application/json" \
   -d '{
-    "credential": "<RAW_CREDENTIAL_SECRET>",
+    "credential": "<AGENT_1_CREDENTIAL_SECRET>",
     "requested_scope": "payments:write"
   }'
 ```
-*Expected Output:* `{"valid": false, "reason": "scope_not_authorized"}`
+*Expected Result:* `{"valid": false, "reason": "scope_not_authorized"}`
 
 ---
 
-### 6. Prove Instant Credential Revocation & Testable Expiration
+### 4. Prove Stale Agent Detection & Team Quarterly Access Review
 
-#### Instant Auto-Revoke Expiry Testing (Using Explicit `expires_at` Override)
-Generate a credential set with an `expires_at` timestamp 1 minute in the past:
+#### Query Team Quarterly Access Review Report
+```bash
+curl -X GET "http://localhost:8000/reviews/report?owning_team=Customer%20Support" \
+  -H "Authorization: Bearer $TOKEN"
+```
+*Returns structured report showing active agents, healthy agents, stale agents (inactive 30+ days), and recommendation summary.*
+
+#### Instant Testing Affordance for Staleness
+Query with `inactivity_days=0` to treat all inactive agents as stale immediately without waiting 30 days:
+```bash
+curl -X GET "http://localhost:8000/reviews/stale-agents?inactivity_days=0" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+---
+
+### 5. Prove Auto-Revoke & Testing Affordance
+
+#### Instant Credential Expiry Testing
+Generate a credential with an explicit past `expires_at` timestamp:
 ```bash
 curl -X POST "http://localhost:8000/credentials/generate" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "agent_id": "<AGENT_A_ID>",
+    "agent_id": "<AGENT_1_ID>",
     "expires_at": "2026-01-01T00:00:00Z"
   }'
 ```
@@ -243,57 +249,98 @@ curl -X POST "http://localhost:8000/credentials/validate" \
     "requested_scope": "tickets:read"
   }'
 ```
-*Expected Output:* `{"valid": false, "reason": "expired"}`
+*Expected Result:* `{"valid": false, "reason": "expired"}`
 
----
-
-### 7. Prove Stale Agent Detection (30-Day Threshold)
+#### Instant Agent Identity Expiry Testing
+Register an agent with an explicit past `expiry_date` timestamp:
 ```bash
-curl -X GET "http://localhost:8000/reviews/stale-agents?inactivity_days=0" \
-  -H "Authorization: Bearer $TOKEN"
+curl -X POST "http://localhost:8000/agents" \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "agent_name": "ExpiredIdentityBot",
+    "purpose": "Test identity expiration",
+    "owning_team": "DevOps",
+    "expiry_date": "2026-01-01T00:00:00Z",
+    "requested_scopes": ["tickets:read"]
+  }'
 ```
-*Lists all agents inactive beyond the requested threshold.*
+Issue a credential and validate:
+```bash
+curl -X POST "http://localhost:8000/credentials/validate" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "credential": "<CREDENTIAL_FOR_EXPIRED_AGENT>",
+    "requested_scope": "tickets:read"
+  }'
+```
+*Expected Result:* `{"valid": false, "reason": "agent_identity_expired"}`
 
 ---
 
-## 📡 API Endpoint Reference Table
+## 🤖 Read-Only AI Insights Chatbot
+
+AIH includes a read-only AI Insights Chatbot endpoint (`POST /chatbot/ask`) and floating frontend widget.
+
+### Capabilities & Domain Guardrails
+- **Supported Domain**: Synthesizes live database state for agent directory queries, stale agent reports, team quarterly reviews, audit logs, and security scores.
+- **Strict Domain Boundary**: Questions outside AIH domain return: `"I can only answer questions about agents and data within Agent Identity Hub."`
+- **Read-Only Enforcement**: Rejects mutating attempts (e.g. "revoke credential") with an explicit message directing users to the dashboard.
+
+### Example Questions
+- *"Which agents haven't made an API call in 30+ days?"*
+- *"Show me the quarterly review report for the Growth team."*
+- *"How many active agents are registered?"*
+- *"What tool scopes are granted to agent agt_123?"*
+
+---
+
+## 🔐 Bonus — Auth0 / OIDC Integration Status
+
+- **Status**: Conceptually scaffolded.
+- **Architecture**: In an enterprise OIDC setup, AIH acts as the Governance Authority deciding identity lifecycle, owning teams, and scope approvals, while an external OIDC provider (Auth0/Okta) acts as the Token Issuer (issuing cryptographically signed JWT access tokens via client_credentials grant). AIH's fast `POST /credentials/validate` endpoint serves as the lightweight local verification authority.
+
+---
+
+## 📌 Known Limitations
+
+- **Single-Org Scaffolding**: Multi-tenant `org_id` is present on all models but defaults to `org_default`.
+- **In-Memory Scheduler**: APScheduler runs within the Uvicorn worker process. For multi-node horizontal scaling, a distributed redis lock or standalone worker runner is recommended.
+
+---
+
+## 📡 Complete API Endpoint Reference Table
 
 | Method | Path | Auth & Role Required | Description |
 | :--- | :--- | :--- | :--- |
 | `GET` | `/health` | None | System health check (`db` & `ai_mode` status). |
+| `HEAD` | `/health` | None | Infrastructure health probe endpoint (bypasses audit logging). |
 | `GET` | `/ai/status` | None | Detailed AI client inspection & live Gemini API ping result. |
 | `POST` | `/auth/login` | None | Admin authentication returning JWT access & refresh tokens. |
 | `POST` | `/auth/refresh-token` | None | Obtains new access token using valid refresh token. |
-| `GET` | `/auth/me` | Bearer (Any Role) | Returns logged-in admin identity and assigned role. |
-| `GET` | `/agents` | Bearer (Any Role) | Paginated & filterable list of managed agent identities. |
-| `POST` | `/agents` | Bearer (`admin`/`superadmin`) | Registers new AI Agent with model metadata and requested scopes. |
+| `GET` | `/auth/me` | Bearer (Any Role) | Returns logged-in admin profile and assigned role. |
+| `GET` | `/agents` | Bearer (Any Role) | Paginated list of managed agents (supports `owning_team` filter). |
+| `POST` | `/agents` | Bearer (`admin`/`superadmin`) | Registers new AI Agent with `owning_team`, `purpose`, and scopes. |
 | `GET` | `/agents/{id}` | Bearer (Any Role) | Retrieves full Identity Card for an agent. |
-| `PUT` | `/agents/{id}` | Bearer (`admin`/`superadmin`) | Updates agent metadata or granted scopes. |
+| `PUT` | `/agents/{id}` | Bearer (`admin`/`superadmin`) | Updates agent identity details or granted scopes. |
 | `DELETE` | `/agents/{id}` | Bearer (`superadmin`) | Soft-deletes agent (`lifecycle_status = deprovisioned`). |
 | `GET` | `/scopes` | Bearer (Any Role) | Returns active live IAM scope manifest. |
 | `POST` | `/scopes` | Bearer (`superadmin`) | Creates new API scope entry in runtime scope manifest. |
 | `DELETE` | `/scopes/{id}` | Bearer (`superadmin`) | Soft-deletes or marks scope as deprecated if in active use. |
 | `POST` | `/credentials/generate` | Bearer (`admin`/`superadmin`) | Issues two-part scoped credential (`aih_{id}_{nonce}_{secret}`). |
-| `POST` | `/credentials/rotate` | Bearer (`admin`/`superadmin`) | Rotates agent credential secret and deactivates old secret. |
+| `POST` | `/credentials/rotate` | Bearer (`admin`/`superadmin`) | Rotates credential secret and deactivates old secret. |
 | `POST` | `/credentials/renew` | Bearer (`admin`/`superadmin`) | Extends credential expiration timestamp. |
 | `POST` | `/credentials/revoke` | Bearer (`admin`/`superadmin`) | Revokes agent credential immediately. |
-| `POST` | `/credentials/validate` | None (Public for AI) | 6-step fast validation chain checking scope authorization. |
+| `POST` | `/credentials/validate` | None (Public for AI) | Fast validation checking expiry, identity status, & scopes; updates usage metrics. |
+| `POST` | `/chatbot/ask` | Bearer (Any Role) | Read-only AI Insights chatbot answering AIH domain queries. |
+| `GET` | `/reviews/stale-agents` | Bearer (Any Role) | Lists agents inactive for 30+ days based on real usage metrics. |
+| `GET` | `/reviews/report` | Bearer (Any Role) | Returns team quarterly access review report (filter by `owning_team`). |
+| `GET` | `/reviews` | Bearer (Any Role) | Paginated list of historical governance review reports. |
+| `POST` | `/reviews/run` | Bearer (`admin`/`superadmin`) | Triggers background governance sweeper jobs. |
 | `POST` | `/governance/analyze` | Bearer (Any Role) | Evaluates posture, score penalties, and security recommendations. |
 | `GET` | `/governance/security-score/{id}`| Bearer (Any Role) | Returns computed security score (0-100) & penalty breakdown. |
-| `POST` | `/governance/scope-recommendation`| Bearer (Any Role) | AI scope recommendation & risk assessment. |
-| `POST` | `/governance/identity-summary` | Bearer (Any Role) | AI 3-4 sentence enterprise summary generator. |
-| `GET` | `/audit` | Bearer (Any Role) | Filterable, paginated immutable audit log trail. |
-| `GET` | `/reviews/stale-agents` | Bearer (Any Role) | Lists agents inactive for 30+ days. |
-| `GET` | `/reviews` | Bearer (Any Role) | Paginated list of governance review reports. |
-| `POST` | `/reviews/run` | Bearer (`admin`/`superadmin`) | Triggers manual background governance jobs. |
+| `GET` | `/audit` | Bearer (Any Role) | Filterable, paginated audit log trail. |
 | `GET` | `/dashboard` | Bearer (Any Role) | Aggregate SQL metrics, risk distribution, and activity feed. |
 | `GET` | `/admins` | Bearer (`superadmin`) | Lists all admin accounts. |
 | `POST` | `/admins` | Bearer (`superadmin`) | Creates new admin account (`email`, `password`, `role`). |
 | `PUT` | `/admins/{id}` | Bearer (`superadmin`) | Updates admin role or `is_active` status. |
-
----
-
-## 📌 Known Limitations & Future Work
-
-- **Single-Tenant Scaffolding**: `org_id` column is scaffolded across `admins` and `agents` for multi-tenant readiness, but strict cross-tenant DB isolation is currently hardcoded to `org_default`.
-- **OAuth2 / OIDC Authorization Server**: Credentials currently validate via AIH's `POST /credentials/validate` fast API endpoint rather than a full OAuth2 token introspection endpoint (`/oauth/introspect`).

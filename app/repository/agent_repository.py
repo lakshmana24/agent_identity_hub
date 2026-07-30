@@ -42,7 +42,6 @@ def create_scope(db: Session, scope_data: dict) -> ScopeManifest:
     return scope
 
 def delete_or_deprecate_scope(db: Session, scope: ScopeManifest) -> ScopeManifest:
-    # Check if scope is referenced by any existing agent
     active_agents = db.query(Agent).filter(Agent.lifecycle_status != "deprovisioned").all()
     in_use = any(scope.scope_name in (a.allowed_scopes or []) for a in active_agents)
 
@@ -66,6 +65,7 @@ def get_agents(
     db: Session,
     status: Optional[str] = None,
     department: Optional[str] = None,
+    owning_team: Optional[str] = None,
     risk_level: Optional[str] = None,
     page: int = 1,
     page_size: int = 20
@@ -75,11 +75,13 @@ def get_agents(
     if status:
         query = query.filter(Agent.lifecycle_status == status)
     else:
-        # By default exclude deprovisioned agents unless explicitly requested
         query = query.filter(Agent.lifecycle_status != "deprovisioned")
 
     if department:
         query = query.filter(Agent.department == department)
+
+    if owning_team:
+        query = query.filter(Agent.owning_team == owning_team)
 
     if risk_level:
         query = query.filter(Agent.risk_level == risk_level)

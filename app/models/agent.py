@@ -11,15 +11,21 @@ class Agent(Base):
 
     id = Column(String, primary_key=True, default=generate_agent_id)
     agent_name = Column(String, index=True, nullable=False)
-    model_provider = Column(String, nullable=False, default="Other")  # e.g., OpenAI, Anthropic, Google, AWS Bedrock
-    model_name = Column(String, nullable=False, default="unknown")  # e.g., gpt-4o, claude-3-5-sonnet, gemini-1.5-flash
-    tools = Column(JSON, nullable=False, default=list)  # e.g., ["web_search", "code_execution", "send_email"]
-    agent_endpoint_url = Column(String, nullable=True)
-    deployment_environment = Column(String, nullable=False, default="production")  # production, staging, sandbox
+    owning_team = Column(String, index=True, nullable=False, default="DefaultTeam")
     purpose = Column(String, nullable=False)
-    department = Column(String, index=True, nullable=False)
-    owner = Column(String, nullable=False)
+    department = Column(String, index=True, nullable=False, default="General")
+    owner = Column(String, nullable=False, default="admin@company.com")
     description = Column(String, nullable=True)
+    expiry_date = Column(DateTime(timezone=True), nullable=True)  # Agent identity authorized lifetime
+    
+    # Optional metadata
+    model_provider = Column(String, nullable=False, default="Other")
+    model_name = Column(String, nullable=False, default="unknown")
+    tools = Column(JSON, nullable=False, default=list)
+    agent_endpoint_url = Column(String, nullable=True)
+    deployment_environment = Column(String, nullable=False, default="production")
+
+    # Governance & Status
     risk_level = Column(String, nullable=False, default="Low")  # Low, Medium, High, Critical
     risk_level_source = Column(String, nullable=False, default="ai_recommended")  # ai_recommended, admin_override
     allowed_scopes = Column(JSON, nullable=False, default=list)  # e.g. ["crm:read", "tickets:write"]

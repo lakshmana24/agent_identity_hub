@@ -19,6 +19,12 @@ def apply_auto_migrations(engine):
         # 2. agents table
         if "agents" in tables:
             cols = [c["name"] for c in inspector.get_columns("agents")]
+            if "owning_team" not in cols:
+                logger.info("Migrating agents: adding 'owning_team' column")
+                conn.execute(text("ALTER TABLE agents ADD COLUMN owning_team VARCHAR NOT NULL DEFAULT 'DefaultTeam';"))
+            if "expiry_date" not in cols:
+                logger.info("Migrating agents: adding 'expiry_date' column")
+                conn.execute(text("ALTER TABLE agents ADD COLUMN expiry_date TIMESTAMP WITH TIME ZONE;"))
             if "model_provider" not in cols:
                 conn.execute(text("ALTER TABLE agents ADD COLUMN model_provider VARCHAR NOT NULL DEFAULT 'Other';"))
             if "model_name" not in cols:
@@ -35,10 +41,21 @@ def apply_auto_migrations(engine):
             if "risk_level_source" not in cols:
                 conn.execute(text("ALTER TABLE agents ADD COLUMN risk_level_source VARCHAR NOT NULL DEFAULT 'ai_recommended';"))
 
-        # 3. admins table
+        # 3. credentials table
+        if "credentials" in tables:
+            cols = [c["name"] for c in inspector.get_columns("credentials")]
+            if "last_used_at" not in cols:
+                logger.info("Migrating credentials: adding 'last_used_at' column")
+                conn.execute(text("ALTER TABLE credentials ADD COLUMN last_used_at TIMESTAMP WITH TIME ZONE;"))
+            if "call_count" not in cols:
+                logger.info("Migrating credentials: adding 'call_count' column")
+                conn.execute(text("ALTER TABLE credentials ADD COLUMN call_count INTEGER NOT NULL DEFAULT 0;"))
+
+        # 4. admins table
         if "admins" in tables:
             cols = [c["name"] for c in inspector.get_columns("admins")]
             if "is_active" not in cols:
+                logger.info("Migrating admins: adding 'is_active' column")
                 conn.execute(text("ALTER TABLE admins ADD COLUMN is_active BOOLEAN NOT NULL DEFAULT TRUE;"))
 
         conn.commit()
