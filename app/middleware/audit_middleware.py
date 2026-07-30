@@ -11,7 +11,7 @@ from app.auth.jwt_handler import decode_token
 
 logger = logging.getLogger("aih.audit")
 
-EXCLUDED_PATHS = {"/health", "/metrics", "/audit", "/docs", "/openapi.json", "/redoc"}
+EXCLUDED_PATHS = {"/health", "/ai/status", "/metrics", "/audit", "/docs", "/openapi.json", "/redoc", "/assets", "/favicon.ico"}
 
 def map_action(method: str, path: str) -> str:
     if path.startswith("/auth/login"):
@@ -24,6 +24,14 @@ def map_action(method: str, path: str) -> str:
         return "agent.update"
     elif path.startswith("/agents") and method == "DELETE":
         return "agent.delete"
+    elif path.startswith("/scopes") and method == "POST":
+        return "scope.create"
+    elif path.startswith("/scopes") and method == "DELETE":
+        return "scope.delete"
+    elif path.startswith("/admins") and method == "POST":
+        return "admin.create"
+    elif path.startswith("/admins") and method == "PUT":
+        return "admin.update"
     elif path.startswith("/credentials/generate"):
         return "credential.generate"
     elif path.startswith("/credentials/rotate"):
@@ -47,8 +55,8 @@ class AuditMiddleware(BaseHTTPMiddleware):
         method = request.method
         path = request.url.path
 
-        # 1. Skip non-mutating requests (GET, OPTIONS) and excluded paths
-        if method in ("GET", "OPTIONS") or any(path.startswith(ex) for ex in EXCLUDED_PATHS):
+        # 1. Skip non-mutating requests (GET, HEAD, OPTIONS) and excluded paths
+        if method in ("GET", "HEAD", "OPTIONS") or any(path == ex or path.startswith(f"{ex}/") for ex in EXCLUDED_PATHS):
             return await call_next(request)
 
         # 2. Extract performed_by from Authorization Bearer token
@@ -64,7 +72,6 @@ class AuditMiddleware(BaseHTTPMiddleware):
 
         # 3. Extract agent_id from path params or request body preview
         agent_id = None
-        # Extract from path e.g., /agents/agt_123 or /governance/security-score/agt_123
         parts = path.split("/")
         for p in parts:
             if p.startswith("agt_"):

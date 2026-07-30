@@ -10,29 +10,33 @@ from app.models.admin import Admin
 from app.auth.password import hash_password
 from app.repository.admin_repository import get_admin_by_email, create_admin
 
-def seed_superadmin():
+DEMO_ACCOUNTS = [
+    {"email": "admin@aih.dev", "password": "AdminPass123!", "role": "superadmin"},
+    {"email": "operator@aih.dev", "password": "OperatorPass123!", "role": "admin"},
+    {"email": "auditor@aih.dev", "password": "AuditorPass123!", "role": "auditor"},
+]
+
+def seed_demo_admins():
     Base.metadata.create_all(bind=engine)
     db = SessionLocal()
     try:
-        admin_email = os.getenv("ADMIN_EMAIL", "admin@aih.dev")
-        admin_password = os.getenv("ADMIN_PASSWORD", "AdminPass123!")
+        for acc in DEMO_ACCOUNTS:
+            existing = get_admin_by_email(db, acc["email"])
+            if existing:
+                print(f"Account '{acc['email']}' already exists. Skipping.")
+                continue
 
-        existing = get_admin_by_email(db, admin_email)
-        if existing:
-            print(f"Superadmin '{admin_email}' already exists. Skipping creation.")
-            return
-
-        hashed = hash_password(admin_password)
-        admin = create_admin(
-            db=db,
-            email=admin_email,
-            hashed_password=hashed,
-            role="superadmin",
-            org_id="org_default"
-        )
-        print(f"Successfully seeded superadmin '{admin.email}' with ID '{admin.id}'.")
+            hashed = hash_password(acc["password"])
+            admin = create_admin(
+                db=db,
+                email=acc["email"],
+                hashed_password=hashed,
+                role=acc["role"],
+                org_id="org_default"
+            )
+            print(f"Successfully seeded '{acc['role']}' account '{admin.email}' with ID '{admin.id}'.")
     finally:
         db.close()
 
 if __name__ == "__main__":
-    seed_superadmin()
+    seed_demo_admins()

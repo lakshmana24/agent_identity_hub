@@ -29,6 +29,33 @@ def get_all_scopes(db: Session) -> List[ScopeManifest]:
 def get_scopes_by_names(db: Session, scope_names: List[str]) -> List[ScopeManifest]:
     return db.query(ScopeManifest).filter(ScopeManifest.scope_name.in_(scope_names)).all()
 
+def get_scope_by_id_or_name(db: Session, identifier: str) -> Optional[ScopeManifest]:
+    return db.query(ScopeManifest).filter(
+        (ScopeManifest.id == identifier) | (ScopeManifest.scope_name == identifier)
+    ).first()
+
+def create_scope(db: Session, scope_data: dict) -> ScopeManifest:
+    scope = ScopeManifest(**scope_data)
+    db.add(scope)
+    db.commit()
+    db.refresh(scope)
+    return scope
+
+def delete_or_deprecate_scope(db: Session, scope: ScopeManifest) -> ScopeManifest:
+    # Check if scope is referenced by any existing agent
+    active_agents = db.query(Agent).filter(Agent.lifecycle_status != "deprovisioned").all()
+    in_use = any(scope.scope_name in (a.allowed_scopes or []) for a in active_agents)
+
+    if in_use:
+        scope.deprecated = True
+        db.commit()
+        db.refresh(scope)
+        return scope
+    else:
+        db.delete(scope)
+        db.commit()
+        return scope
+
 
 # --- Agent Repository Functions ---
 

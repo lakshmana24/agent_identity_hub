@@ -4,20 +4,24 @@ from pydantic import BaseModel, Field, ConfigDict
 
 class CredentialGenerateRequest(BaseModel):
     agent_id: str
-    expires_in_days: int = Field(default=90, ge=1, le=365)
+    expires_in_days: Optional[int] = Field(default=90, ge=1, le=365)
+    expires_at: Optional[datetime] = None  # Optional testing override (ISO 8601 string)
 
 class CredentialGenerateResponse(BaseModel):
     agent_id: str
     credential: str
     expires_at: datetime
-    warning: str = "This credential will not be shown again. Store it securely."
+    warning: str = "This credential secret will not be shown again. Store it securely."
 
 class CredentialRotateRequest(BaseModel):
     agent_id: str
+    expires_in_days: Optional[int] = Field(default=90, ge=1, le=365)
+    expires_at: Optional[datetime] = None
 
 class CredentialRenewRequest(BaseModel):
     agent_id: str
-    extend_days: int = Field(default=30, ge=1, le=365)
+    extend_days: Optional[int] = Field(default=30, ge=1, le=365)
+    expires_at: Optional[datetime] = None
 
 class CredentialRevokeRequest(BaseModel):
     agent_id: str

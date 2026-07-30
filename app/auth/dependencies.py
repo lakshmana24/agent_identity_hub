@@ -1,3 +1,4 @@
+from typing import List, Union
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from jose import JWTError
@@ -27,16 +28,36 @@ def get_current_admin(token: str = Depends(oauth2_scheme), db: Session = Depends
         raise credentials_exception
 
     admin = get_admin_by_id(db, admin_id=admin_id)
-    if admin is None:
-        raise credentials_exception
+    if admin is None or not getattr(admin, "is_active", True):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Account is inactive or credentials invalid."
+        )
     return admin
 
-def require_role(required_role: str):
+def require_role(roles: Union[str, List[str]]):
+    allowed = [roles] if isinstance(roles, str) else roles
     def role_checker(current_admin: Admin = Depends(get_current_admin)) -> Admin:
-        if current_admin.role != required_role and current_admin.role != "superadmin":
+        if current_admin.role not in allowed and current_admin.role != "superadmin":
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Operation not permitted for this role"
+                detail=f"Operation not permitted for role '{current_admin.role}'. Required: {allowed}."
             )
         return current_admin
     return role_checker
+
+def require_write_access(current_admin: Admin = Depends(get_current_admin)) -> Admin:
+    if current_admin.role == "auditor":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Auditor role is read-only. Mutating actions are prohibited."
+        )
+    return current_admin
+
+def require_superadmin(current_admin: Admin = Depends(get_current_admin)) -> Admin:
+    if current_admin.role != "superadmin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Superadmin privilege required for this action."
+        )
+    return current_admin

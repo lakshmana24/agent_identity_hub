@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime, timezone
-from sqlalchemy import Column, String, DateTime
+from sqlalchemy import Column, String, Boolean, DateTime
 from app.database.session import Base
 
 def generate_scope_id():
@@ -14,4 +14,5 @@ class ScopeManifest(Base):
     action_type = Column(String, nullable=False)  # "read" | "write"
     description = Column(String, nullable=False)
     risk_level = Column(String, nullable=False, default="Low")  # Low, Medium, High, Critical
+    deprecated = Column(Boolean, nullable=False, default=False)
     created_at = Column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), nullable=False)

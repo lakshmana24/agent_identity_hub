@@ -19,6 +19,7 @@ from app.repository.agent_repository import (
 )
 from app.repository.credential_repository import get_latest_credential_by_agent_id, deactivate_agent_credentials
 from app.models.agent import Agent
+from app.ai.gemini_client import get_ai_client
 
 RISK_HIERARCHY = {"Low": 1, "Medium": 2, "High": 3, "Critical": 4}
 RISK_REVERSE = {1: "Low", 2: "Medium", 3: "High", 4: "Critical"}
@@ -53,11 +54,17 @@ def build_identity_card(db: Session, agent: Agent) -> IdentityCard:
     return IdentityCard(
         agent_id=agent.id,
         agent_name=agent.agent_name,
+        model_provider=agent.model_provider or "Other",
+        model_name=agent.model_name or "unknown",
+        tools=agent.tools or [],
+        agent_endpoint_url=agent.agent_endpoint_url,
+        deployment_environment=agent.deployment_environment or "production",
         purpose=agent.purpose,
         department=agent.department,
         owner=agent.owner,
         description=agent.description,
         risk_level=agent.risk_level,
+        risk_level_source=agent.risk_level_source or "ai_recommended",
         allowed_scopes=agent.allowed_scopes or [],
         credential_status=cred_status,
         expiry_date=exp_date,
@@ -82,20 +89,45 @@ def register_agent_service(db: Session, payload: AgentCreateRequest) -> Identity
             detail=f"Invalid scopes requested: {sorted(list(missing_scopes))}. Scope does not exist in manifest."
         )
 
-    # 2. Determine risk level from scopes
-    risk_level = _calculate_risk_from_scopes(found_scopes)
+    # 2. Determine risk level & source
+    if payload.risk_level and payload.risk_level in RISK_HIERARCHY:
+        final_risk = payload.risk_level
+        risk_source = payload.risk_level_source or "admin_override"
+    else:
+        final_risk = _calculate_risk_from_scopes(found_scopes)
+        risk_source = "ai_recommended"
 
-    # 3. Create agent record
+    # 3. Generate AI summary automatically if not provided
+    ai_client = get_ai_client()
+    summary_text = ai_client.generate_identity_summary({
+        "agent_name": payload.agent_name,
+        "purpose": payload.purpose,
+        "department": payload.department,
+        "scopes": requested_scopes,
+        "risk_level": final_risk,
+        "model_provider": payload.model_provider,
+        "model_name": payload.model_name,
+        "tools": payload.tools
+    })
+
+    # 4. Create agent record
     agent_data = {
         "agent_name": payload.agent_name,
+        "model_provider": payload.model_provider or "Other",
+        "model_name": payload.model_name or "unknown",
+        "tools": payload.tools or [],
+        "agent_endpoint_url": payload.agent_endpoint_url,
+        "deployment_environment": payload.deployment_environment or "production",
         "purpose": payload.purpose,
         "department": payload.department,
         "owner": payload.owner,
         "description": payload.description,
-        "risk_level": risk_level,
+        "risk_level": final_risk,
+        "risk_level_source": risk_source,
         "allowed_scopes": requested_scopes,
         "lifecycle_status": "active",
-        "security_score": 100
+        "security_score": 100,
+        "ai_summary": summary_text
     }
 
     agent = repo_create_agent(db, agent_data)
@@ -145,7 +177,8 @@ def update_agent_service(db: Session, agent_id: str, payload: AgentUpdateRequest
                 detail=f"Invalid scopes requested: {sorted(list(missing_scopes))}."
             )
         update_dict["allowed_scopes"] = new_scopes
-        update_dict["risk_level"] = _calculate_risk_from_scopes(found_scopes)
+        if "risk_level" not in update_dict:
+            update_dict["risk_level"] = _calculate_risk_from_scopes(found_scopes)
 
     updated_agent = repo_update_agent(db, agent, update_dict)
     return build_identity_card(db, updated_agent)

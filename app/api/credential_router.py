@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
 from app.database.session import get_db
-from app.auth.dependencies import get_current_admin
+from app.auth.dependencies import get_current_admin, require_write_access
 from app.schemas.credential_schemas import (
     CredentialGenerateRequest,
     CredentialGenerateResponse,
@@ -27,7 +27,7 @@ router = APIRouter(prefix="/credentials", tags=["Credential Management"])
 def generate_credential(
     payload: CredentialGenerateRequest,
     db: Session = Depends(get_db),
-    current_admin: Admin = Depends(get_current_admin)
+    current_admin: Admin = Depends(require_write_access)
 ):
     return generate_credential_service(db, payload)
 
@@ -35,7 +35,7 @@ def generate_credential(
 def rotate_credential(
     payload: CredentialRotateRequest,
     db: Session = Depends(get_db),
-    current_admin: Admin = Depends(get_current_admin)
+    current_admin: Admin = Depends(require_write_access)
 ):
     return rotate_credential_service(db, payload)
 
@@ -43,7 +43,7 @@ def rotate_credential(
 def renew_credential(
     payload: CredentialRenewRequest,
     db: Session = Depends(get_db),
-    current_admin: Admin = Depends(get_current_admin)
+    current_admin: Admin = Depends(require_write_access)
 ):
     return renew_credential_service(db, payload)
 
@@ -51,7 +51,7 @@ def renew_credential(
 def revoke_credential(
     payload: CredentialRevokeRequest,
     db: Session = Depends(get_db),
-    current_admin: Admin = Depends(get_current_admin)
+    current_admin: Admin = Depends(require_write_access)
 ):
     return revoke_credential_service(db, payload)
 

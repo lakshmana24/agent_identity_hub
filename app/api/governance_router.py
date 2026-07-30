@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 
 from app.database.session import get_db
 from app.auth.dependencies import get_current_admin
+from app.config.settings import settings
 from app.schemas.governance_schemas import (
     GovernanceAnalyzeRequest,
     GovernanceAnalysisResult,
@@ -22,9 +23,28 @@ from app.services.ai_recommendation_service import (
     recommend_scopes_service,
     generate_identity_summary_service
 )
+from app.ai.gemini_client import get_ai_client, LiveGeminiClient
 from app.models.admin import Admin
 
 router = APIRouter(prefix="/governance", tags=["Governance & Security Enforcement"])
+
+@router.get("/ai-status")
+def get_ai_status():
+    mode = settings.AI_MODE.lower()
+    has_key = bool(settings.GEMINI_API_KEY and settings.GEMINI_API_KEY != "replace_with_your_gemini_api_key")
+    ai_client = get_ai_client()
+    is_live = isinstance(ai_client, LiveGeminiClient)
+
+    live_ping = None
+    if is_live:
+        live_ping = ai_client.test_live_connection()
+
+    return {
+        "ai_mode": "live" if is_live else "mock",
+        "configured_ai_mode": mode,
+        "gemini_api_key_configured": has_key,
+        "live_ping": live_ping
+    }
 
 @router.post("/analyze", response_model=GovernanceAnalysisResult)
 def analyze_governance(

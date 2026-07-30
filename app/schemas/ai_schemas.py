@@ -3,6 +3,9 @@ from pydantic import BaseModel, ConfigDict
 
 class ScopeRecommendationRequest(BaseModel):
     purpose: str
+    model_provider: Optional[str] = "Other"
+    model_name: Optional[str] = "unknown"
+    tools: Optional[List[str]] = []
 
 class ScopeRecommendationResponse(BaseModel):
     recommended_scopes: List[str]
@@ -18,6 +21,9 @@ class IdentitySummaryRequest(BaseModel):
     department: str
     scopes: List[str]
     risk_level: str
+    model_provider: Optional[str] = "Other"
+    model_name: Optional[str] = "unknown"
+    tools: Optional[List[str]] = []
 
 class IdentitySummaryResponse(BaseModel):
     summary: str

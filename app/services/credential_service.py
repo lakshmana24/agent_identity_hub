@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+from typing import List, Optional
 from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -22,6 +23,14 @@ from app.repository.agent_repository import get_agent_by_id
 from app.utils.credential_generator import generate_credential_pair, split_credential
 from app.auth.password import hash_password, verify_password
 
+def _resolve_expires_at(expires_at_override: Optional[datetime], expires_in_days: Optional[int], default_days: int = 90) -> datetime:
+    if expires_at_override:
+        if expires_at_override.tzinfo is None:
+            return expires_at_override.replace(tzinfo=timezone.utc)
+        return expires_at_override
+    days = expires_in_days if expires_in_days is not None else default_days
+    return datetime.now(timezone.utc) + timedelta(days=days)
+
 def generate_credential_service(db: Session, payload: CredentialGenerateRequest) -> CredentialGenerateResponse:
     agent = get_agent_by_id(db, payload.agent_id)
     if not agent:
@@ -34,7 +43,7 @@ def generate_credential_service(db: Session, payload: CredentialGenerateRequest)
 
     raw_credential, lookup_id, secret = generate_credential_pair(agent.id)
     secret_hash = hash_password(secret)
-    expires_at = datetime.now(timezone.utc) + timedelta(days=payload.expires_in_days)
+    expires_at = _resolve_expires_at(payload.expires_at, payload.expires_in_days, 90)
 
     cred_data = {
         "agent_id": agent.id,
@@ -61,10 +70,10 @@ def rotate_credential_service(db: Session, payload: CredentialRotateRequest) -> 
     # Mark old credential rotated
     deactivate_agent_credentials(db, agent.id, rotated=True)
 
-    # Generate new credential (default 90 days)
+    # Generate new credential
     raw_credential, lookup_id, secret = generate_credential_pair(agent.id)
     secret_hash = hash_password(secret)
-    expires_at = datetime.now(timezone.utc) + timedelta(days=90)
+    expires_at = _resolve_expires_at(payload.expires_at, payload.expires_in_days, 90)
 
     cred_data = {
         "agent_id": agent.id,
@@ -86,11 +95,15 @@ def renew_credential_service(db: Session, payload: CredentialRenewRequest) -> di
     if not cred:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"No active credential found for agent '{payload.agent_id}'.")
 
-    exp = cred.expires_at
-    if exp and exp.tzinfo is None:
-        exp = exp.replace(tzinfo=timezone.utc)
+    if payload.expires_at:
+        new_expires_at = payload.expires_at if payload.expires_at.tzinfo else payload.expires_at.replace(tzinfo=timezone.utc)
+    else:
+        exp = cred.expires_at
+        if exp and exp.tzinfo is None:
+            exp = exp.replace(tzinfo=timezone.utc)
+        extend = payload.extend_days if payload.extend_days is not None else 30
+        new_expires_at = exp + timedelta(days=extend)
 
-    new_expires_at = exp + timedelta(days=payload.extend_days)
     update_credential(db, cred, {"expires_at": new_expires_at})
 
     return {
