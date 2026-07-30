@@ -11,7 +11,7 @@ class Settings(BaseSettings):
 
     # Gemini / AI configuration
     GEMINI_API_KEY: str | None = None
-    AI_MODE: str = "mock"  # "live" in production
+    AI_MODE: str = "live"  # "live" in production
 
     LOG_LEVEL: str = "info"
 
