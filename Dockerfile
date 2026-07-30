@@ -29,4 +29,4 @@ USER appuser
 
 EXPOSE 8000
 
-CMD gunicorn -k uvicorn.workers.UvicornWorker -w 4 -b 0.0.0.0:${PORT:-8000} app.main:app
+CMD gunicorn -k uvicorn.workers.UvicornWorker -w 4 -b 0.0.0.0:${PORT:-8000} --timeout 120 --keep-alive 5 app.main:app
