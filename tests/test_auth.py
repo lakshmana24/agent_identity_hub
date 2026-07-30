@@ -2,15 +2,20 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
+import app.models
 from app.main import app
 from app.database.session import Base, get_db
 from app.models.admin import Admin
 from app.auth.password import hash_password
 
-# Use SQLite in-memory database for fast, isolated unit tests
 SQLALCHEMY_TEST_DATABASE_URL = "sqlite:///:memory:"
-engine = create_engine(SQLALCHEMY_TEST_DATABASE_URL, connect_args={"check_same_thread": False})
+engine = create_engine(
+    SQLALCHEMY_TEST_DATABASE_URL,
+    connect_args={"check_same_thread": False},
+    poolclass=StaticPool
+)
 TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 @pytest.fixture(scope="function")

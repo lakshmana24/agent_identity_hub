@@ -1,0 +1,77 @@
+from typing import List, Optional, Tuple
+from sqlalchemy.orm import Session
+from app.models.agent import Agent
+from app.models.scope_manifest import ScopeManifest
+
+# --- Scope Manifest Repository Functions ---
+
+DEFAULT_SCOPES = [
+    {"scope_name": "crm:read", "action_type": "read", "description": "Read access to customer relationship management data", "risk_level": "Low"},
+    {"scope_name": "crm:write", "action_type": "write", "description": "Create and modify customer records in CRM", "risk_level": "Medium"},
+    {"scope_name": "tickets:read", "action_type": "read", "description": "Read access to support tickets and customer queries", "risk_level": "Low"},
+    {"scope_name": "tickets:write", "action_type": "write", "description": "Create, update, and resolve support tickets", "risk_level": "Medium"},
+    {"scope_name": "inventory:read", "action_type": "read", "description": "Read access to stock levels and product inventory", "risk_level": "Low"},
+    {"scope_name": "inventory:write", "action_type": "write", "description": "Modify inventory counts, product listings, and orders", "risk_level": "High"},
+    {"scope_name": "payments:read", "action_type": "read", "description": "Read transaction history and payment status", "risk_level": "Medium"},
+    {"scope_name": "payments:write", "action_type": "write", "description": "Process refunds and initiate payment transactions", "risk_level": "Critical"},
+]
+
+def seed_default_scopes(db: Session) -> None:
+    for s in DEFAULT_SCOPES:
+        existing = db.query(ScopeManifest).filter(ScopeManifest.scope_name == s["scope_name"]).first()
+        if not existing:
+            db.add(ScopeManifest(**s))
+    db.commit()
+
+def get_all_scopes(db: Session) -> List[ScopeManifest]:
+    return db.query(ScopeManifest).order_by(ScopeManifest.scope_name).all()
+
+def get_scopes_by_names(db: Session, scope_names: List[str]) -> List[ScopeManifest]:
+    return db.query(ScopeManifest).filter(ScopeManifest.scope_name.in_(scope_names)).all()
+
+
+# --- Agent Repository Functions ---
+
+def get_agent_by_id(db: Session, agent_id: str) -> Optional[Agent]:
+    return db.query(Agent).filter(Agent.id == agent_id).first()
+
+def get_agents(
+    db: Session,
+    status: Optional[str] = None,
+    department: Optional[str] = None,
+    risk_level: Optional[str] = None,
+    page: int = 1,
+    page_size: int = 20
+) -> Tuple[List[Agent], int]:
+    query = db.query(Agent)
+
+    if status:
+        query = query.filter(Agent.lifecycle_status == status)
+    else:
+        # By default exclude deprovisioned agents unless explicitly requested
+        query = query.filter(Agent.lifecycle_status != "deprovisioned")
+
+    if department:
+        query = query.filter(Agent.department == department)
+
+    if risk_level:
+        query = query.filter(Agent.risk_level == risk_level)
+
+    total = query.count()
+    agents = query.order_by(Agent.created_at.desc()).offset((page - 1) * page_size).limit(page_size).all()
+    return agents, total
+
+def create_agent(db: Session, agent_data: dict) -> Agent:
+    agent = Agent(**agent_data)
+    db.add(agent)
+    db.commit()
+    db.refresh(agent)
+    return agent
+
+def update_agent(db: Session, agent: Agent, update_dict: dict) -> Agent:
+    for key, value in update_dict.items():
+        if value is not None:
+            setattr(agent, key, value)
+    db.commit()
+    db.refresh(agent)
+    return agent
