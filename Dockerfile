@@ -17,6 +17,7 @@ RUN pip install --upgrade pip && pip install --no-cache-dir -r requirements.txt
 COPY . .
 COPY --from=frontend-builder /frontend/dist /app/frontend/dist
 
+
 # Stage 3: Production final runtime image
 FROM python:3.12-slim
 WORKDIR /app
@@ -29,4 +30,6 @@ USER appuser
 
 EXPOSE 8000
 
+
 CMD gunicorn -k uvicorn.workers.UvicornWorker -w 4 -b 0.0.0.0:${PORT:-8000} --timeout 120 --keep-alive 5 app.main:app
+
