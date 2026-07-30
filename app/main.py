@@ -1,11 +1,21 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
-from app.database.session import get_db
 
-app = FastAPI(title="Agent Identity Hub")
+from app.database.session import engine, Base, get_db
+from app.api import auth_router
+import app.models  # Ensures models are imported for Base.metadata
 
-# CORS (allow all for simplicity; tighten in prod)
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Ensure tables exist
+    Base.metadata.create_all(bind=engine)
+    yield
+
+app = FastAPI(title="Agent Identity Hub", lifespan=lifespan)
+
+# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -14,11 +24,13 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Routers
+app.include_router(auth_router.router)
+
 @app.get("/health")
-async def health_check(db=Depends(get_db)):
+def health_check(db=Depends(get_db)):
     try:
-        # simple query to verify DB connectivity
-        await db.execute(text("SELECT 1"))
+        db.execute(text("SELECT 1"))
         return {"status": "ok", "db": "connected"}
     except Exception as e:
         return {"status": "error", "detail": str(e)}
