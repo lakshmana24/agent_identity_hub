@@ -1,30 +1,32 @@
 # syntax=docker/dockerfile:1.4
-FROM python:3.12-slim AS builder
+# Stage 1: Build React Frontend SPA
+FROM node:22-alpine AS frontend-builder
+WORKDIR /frontend
+COPY frontend/package*.json ./
+RUN npm ci
+COPY frontend/ ./
+RUN npm run build
 
-# Install build dependencies
+# Stage 2: Build Python dependencies
+FROM python:3.12-slim AS builder
 RUN apt-get update && apt-get install -y --no-install-recommends gcc build-essential && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-
-# Copy requirements and install
 COPY requirements.txt .
 RUN pip install --upgrade pip && pip install --no-cache-dir -r requirements.txt
-
-# Copy source code
 COPY . .
+COPY --from=frontend-builder /frontend/dist /app/frontend/dist
 
-# Production image
+# Stage 3: Production final runtime image
 FROM python:3.12-slim
 WORKDIR /app
 COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
 COPY --from=builder /app /app
 
-# Create non-root user
 RUN useradd -m appuser && chown -R appuser:appuser /app
 USER appuser
 
 EXPOSE 8000
 
-# Use Gunicorn with Uvicorn workers
 CMD gunicorn -k uvicorn.workers.UvicornWorker -w 4 -b 0.0.0.0:${PORT:-8000} app.main:app
